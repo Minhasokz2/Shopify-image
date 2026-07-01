@@ -33,14 +33,18 @@ export default function App() {
   return (
     <>
       {/* Rendered by the Shopify admin's own chrome, not in-page — see
-          https://shopify.dev/docs/api/app-bridge-library/react-components/navmenu */}
-      <NavMenu>
-        {NAV_LINKS.map(({ to, label }) => (
-          <Link key={to} to={to} rel={to === '/' ? 'home' : undefined}>
-            {label}
-          </Link>
-        ))}
-      </NavMenu>
+          https://shopify.dev/docs/api/app-bridge-library/react-components/navmenu
+          Only mounted when embedded: outside the Shopify iframe there's no chrome to consume
+          these as a portal target, so the custom element dumps its children as raw <a> tags. */}
+      {isEmbedded && (
+        <NavMenu>
+          {NAV_LINKS.map(({ to, label }) => (
+            <Link key={to} to={to} rel={to === '/' ? 'home' : undefined}>
+              {label}
+            </Link>
+          ))}
+        </NavMenu>
+      )}
 
       {!isEmbedded && (
         <Box background="bg-surface" borderBlockEndWidth="025" borderColor="border" padding="300">
