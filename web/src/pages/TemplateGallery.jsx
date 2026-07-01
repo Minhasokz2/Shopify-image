@@ -19,11 +19,11 @@ import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
-const TABS = [
-  { id: 'scene', content: 'Scenes' },
-  { id: 'ugc', content: 'UGC' },
-  { id: 'video', content: 'Video' },
-];
+// UGC and video are temporarily hidden from merchants — their providers (OpenAI, WaveSpeed)
+// aren't configured with real credentials yet. Re-add { id: 'ugc', content: 'UGC' } and
+// { id: 'video', content: 'Video' } once they are; nothing else needs to change, the
+// backend/admin CMS for both still fully exists.
+const TABS = [{ id: 'scene', content: 'Scenes' }];
 
 function useTemplates() {
   return useQuery({
@@ -130,7 +130,7 @@ export default function TemplateGallery() {
         ) : null}
 
         <Card padding="0">
-          <Tabs tabs={TABS} selected={selectedTabIndex} onSelect={setSelectedTabIndex} />
+          {TABS.length > 1 ? <Tabs tabs={TABS} selected={selectedTabIndex} onSelect={setSelectedTabIndex} /> : null}
           <Box padding="400">
             {isLoading ? (
               <InlineStack align="center">

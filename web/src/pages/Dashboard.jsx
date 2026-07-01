@@ -87,12 +87,13 @@ export default function Dashboard() {
               <Text as="h2" variant="headingMd">
                 Quick generate
               </Text>
+              {/* UGC and video quick-actions are temporarily hidden — their providers (OpenAI,
+                  WaveSpeed) aren't configured with real credentials yet. Re-add
+                  "Generate UGC content" / "Generate video" buttons (same onClick) once they are. */}
               <InlineStack gap="200">
                 <Button variant="primary" onClick={() => navigate('/products')}>
                   Generate scene photos
                 </Button>
-                <Button onClick={() => navigate('/products')}>Generate UGC content</Button>
-                <Button onClick={() => navigate('/products')}>Generate video</Button>
               </InlineStack>
             </BlockStack>
           </Card>
