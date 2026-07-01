@@ -1,0 +1,48 @@
+# Shopify app configuration for VisualKit.
+# client_id and application_url are placeholders — replace via `shopify app config link`
+# against a real Partner Dashboard app record, or by editing this file directly before deploy.
+name = "VisualKit"
+client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
+application_url = "https://your-app-domain.example.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_products,write_products,read_product_listings"
+
+[auth]
+redirect_urls = [
+  "https://your-app-domain.example.com/auth/callback"
+]
+
+# Pinned to match server/src/config/shopify.js's LATEST_API_VERSION at the time this file
+# was authored. Keep these in sync — the TOML value governs webhook payload versions,
+# the JS constant governs Admin GraphQL/REST calls.
+[webhooks]
+api_version = "2025-01"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+topics = ["shop/redact"]
+uri = "/webhooks/shop/redact"
+
+[[webhooks.subscriptions]]
+topics = ["customers/redact"]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+topics = ["customers/data_request"]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+topics = ["app_subscriptions/update"]
+uri = "/webhooks/app_subscriptions/update"
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = ""

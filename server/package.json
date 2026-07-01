@@ -1,0 +1,41 @@
+{
+  "name": "@visualkit/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed:templates": "node scripts/seedTemplates.js",
+    "sweep:nurture": "node scripts/runNurtureSweep.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.109.0",
+    "@aws-sdk/client-s3": "^3.1077.0",
+    "@aws-sdk/s3-request-presigner": "^3.1077.0",
+    "@fal-ai/client": "^1.10.1",
+    "@sentry/node": "^10.62.0",
+    "@shopify/shopify-api": "^13.1.0",
+    "@shopify/shopify-app-express": "^7.0.1",
+    "@shopify/shopify-app-session-storage": "^5.0.1",
+    "dotenv": "^16.4.5",
+    "express": "^5.0.0",
+    "firebase-admin": "^14.1.0",
+    "multer": "^2.2.0",
+    "openai": "^6.45.0",
+    "p-limit": "^6.2.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "resend": "^6.16.0",
+    "sharp": "^0.33.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@shopify/shopify-app-session-storage-memory": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "supertest": "^7.0.0",
+    "vitest": "^4.1.9"
+  }
+}

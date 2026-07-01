@@ -1,0 +1,27 @@
+{
+  "name": "visualkit",
+  "private": true,
+  "version": "1.0.0",
+  "description": "VisualKit — AI product image, UGC & video generator for Shopify",
+  "workspaces": [
+    "server",
+    "web",
+    "marketing"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev:marketing": "npm run dev -w marketing",
+    "build": "npm run build -w web && npm run build -w marketing",
+    "build:server": "npm run build -w server --if-present",
+    "test": "npm run test -w server && npm run test -w web --if-present",
+    "seed:templates": "npm run seed:templates -w server",
+    "sweep:nurture": "npm run sweep:nurture -w server",
+    "lint": "npm run lint -w server --if-present && npm run lint -w web --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
