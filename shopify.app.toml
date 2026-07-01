@@ -18,7 +18,7 @@ redirect_urls = [
 # was authored. Keep these in sync — the TOML value governs webhook payload versions,
 # the JS constant governs Admin GraphQL/REST calls.
 [webhooks]
-api_version = "2025-01"
+api_version = "2026-07"
 
 [[webhooks.subscriptions]]
 topics = ["app/uninstalled"]
