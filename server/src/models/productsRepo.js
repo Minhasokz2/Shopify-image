@@ -3,9 +3,11 @@ import { firestore, FieldValue } from '../lib/firestore.js';
 const COLLECTION = 'products';
 
 // Cache key is shopDomain+productId composite so the same collection safely holds every shop's
-// catalog (spec Section 3: "cached in Firestore, incremental refresh").
-function docId(shopDomain, productId) {
-  return `${shopDomain}__${productId}`;
+// catalog (spec Section 3: "cached in Firestore, incremental refresh"). productId is a Shopify
+// GID (e.g. "gid://shopify/Product/123") — Firestore document IDs can't contain "/", so the GID
+// is sanitized before being embedded rather than used raw.
+export function docId(shopDomain, productId) {
+  return `${shopDomain}__${productId.replace(/[/:]/g, '_')}`;
 }
 
 export const productsRepo = {
