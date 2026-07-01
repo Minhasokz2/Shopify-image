@@ -49,17 +49,18 @@ Runs Vitest across `server/` (unit tests for the credit ledger, idempotency, the
 
 **Known limitation:** this environment has no live API keys for FAL.ai, OpenAI, Anthropic, WaveSpeed, Firebase, Resend, or Sentry, and no real Shopify development store (Cloudinary is the one exception — see below). All tests mock these SDKs at the module boundary. Before shipping, run one manual end-to-end smoke test per content type (scene / UGC / video) and one per billing flow (one-time pack, subscription) against a real dev store and real credentials — this has not been done as part of this build.
 
-## Seeding templates
+## Seeding templates and allowed models
 
-The app is unusable without the `templates` Firestore collection populated (nothing in the product spec covers this, but every generation job reads its cost/model/prompt from a template record):
+The app is unusable without the `templates` Firestore collection populated (nothing in the product spec covers this, but every generation job reads its cost/model/prompt from a template record). The `allowed_models` collection backs the separate custom-prompt flow (see below) and is optional but recommended:
 
 ```bash
 node scripts/seedTemplates.js
+node scripts/seedAllowedModels.js
 ```
 
-## Managing templates
+## Managing templates and allowed models
 
-Beyond the initial seed, templates are managed through the `admin/` tool rather than by editing Firestore directly:
+Beyond the initial seed, templates and allowed models are managed through the `admin/` tool rather than by editing Firestore directly:
 
 ```bash
 npm run dev -w admin      # local dev, served at http://localhost:5174
@@ -67,7 +68,10 @@ npm run dev -w admin      # local dev, served at http://localhost:5174
 npm run build -w admin    # server/src/app.js serves the build at /admin
 ```
 
-Sign in with `ADMIN_API_KEY` (set in `server/.env`). The catalog is shared across every merchant shop, so create/edit/delete here takes effect for all of them immediately — there is no per-shop template customization. The `preferredModel` allowed for a template is constrained by its `category` (scene → FLUX/Imagen, ugc → GPT Image 2, video → Seedance/Kling/Wan) — the admin UI only offers valid combinations, and the server rejects an invalid one regardless.
+Sign in with `ADMIN_API_KEY` (set in `server/.env`). Both catalogs are shared across every merchant shop, so create/edit/delete here takes effect for all of them immediately — there is no per-shop customization.
+
+- **Templates** (`Templates` tab): fixed prompt + model + cost, picked by merchants browsing the Template Gallery. The `preferredModel` allowed for a template is constrained by its `category` (scene → FLUX/Imagen, ugc → GPT Image 2, video → Seedance/Kling/Wan) — the admin UI only offers valid combinations, and the server rejects an invalid one regardless.
+- **Allowed models** (`Allowed models` tab): scene-only FAL models a merchant may pick directly for the custom-prompt flow (Products → "Write a custom prompt"), where the merchant supplies their own prompt and one or more reference images instead of picking a template. Each model has its own credit cost and a `supportsMultiImage` flag — only enable multi-image for models with a verified multi-image FAL endpoint (currently FLUX Kontext Max/Pro).
 
 ## Firestore indexes
 

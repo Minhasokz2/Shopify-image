@@ -3,7 +3,9 @@ import { NavMenu } from '@shopify/app-bridge-react';
 import { Box, InlineStack } from '@shopify/polaris';
 import Dashboard from './pages/Dashboard.jsx';
 import ProductPicker from './pages/ProductPicker.jsx';
+import GenerateMethod from './pages/GenerateMethod.jsx';
 import TemplateGallery from './pages/TemplateGallery.jsx';
+import CustomPromptStudio from './pages/CustomPromptStudio.jsx';
 import PersonaBuilder from './pages/PersonaBuilder.jsx';
 import VideoStudio from './pages/VideoStudio.jsx';
 import GenerationReview from './pages/GenerationReview.jsx';
@@ -61,7 +63,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/products" element={<ProductPicker />} />
+        <Route path="/generate-method" element={<GenerateMethod />} />
         <Route path="/templates" element={<TemplateGallery />} />
+        <Route path="/custom-generate" element={<CustomPromptStudio />} />
         <Route path="/persona" element={<PersonaBuilder />} />
         <Route path="/video-studio" element={<VideoStudio />} />
         <Route path="/review/:jobId" element={<GenerationReview />} />

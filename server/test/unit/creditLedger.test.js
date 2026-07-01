@@ -14,6 +14,7 @@ const {
   addCredits,
   InsufficientCreditsError,
   UnknownTemplateError,
+  UnknownModelError,
 } = await import('../../src/services/creditLedger.js');
 const { JOB_STATUS } = await import('../../src/models/jobsRepo.js');
 
@@ -33,7 +34,9 @@ describe('creditLedger: assertSufficientCredits (pre-flight only, never deducts)
   it('passes when balance covers the template cost', async () => {
     await seedShop('shop1.myshopify.com', { creditBalance: 10 });
     await seedTemplate('studio-white', { creditCost: 4 });
-    await expect(assertSufficientCredits('shop1.myshopify.com', 'studio-white')).resolves.toMatchObject({ creditCost: 4 });
+    await expect(assertSufficientCredits('shop1.myshopify.com', { templateId: 'studio-white' })).resolves.toMatchObject({
+      creditCost: 4,
+    });
 
     const shop = await firestore.collection('shops').doc('shop1.myshopify.com').get();
     expect(shop.data().creditBalance).toBe(10); // untouched — pre-flight never deducts
@@ -42,22 +45,40 @@ describe('creditLedger: assertSufficientCredits (pre-flight only, never deducts)
   it('throws InsufficientCreditsError when balance is too low', async () => {
     await seedShop('shop2.myshopify.com', { creditBalance: 2 });
     await seedTemplate('ugc-home-casual', { creditCost: 5 });
-    await expect(assertSufficientCredits('shop2.myshopify.com', 'ugc-home-casual')).rejects.toBeInstanceOf(
-      InsufficientCreditsError,
-    );
+    await expect(
+      assertSufficientCredits('shop2.myshopify.com', { templateId: 'ugc-home-casual' }),
+    ).rejects.toBeInstanceOf(InsufficientCreditsError);
   });
 
   it('skips the balance check entirely for unlimited-plan shops', async () => {
     await seedShop('shop3.myshopify.com', { creditBalance: 0, plan: 'unlimited' });
     await seedTemplate('video-cinematic-pan', { creditCost: 15 });
-    await expect(assertSufficientCredits('shop3.myshopify.com', 'video-cinematic-pan')).resolves.toBeTruthy();
+    await expect(
+      assertSufficientCredits('shop3.myshopify.com', { templateId: 'video-cinematic-pan' }),
+    ).resolves.toBeTruthy();
   });
 
   it('throws UnknownTemplateError for a templateId the client made up', async () => {
     await seedShop('shop4.myshopify.com', {});
-    await expect(assertSufficientCredits('shop4.myshopify.com', 'not-a-real-template')).rejects.toBeInstanceOf(
-      UnknownTemplateError,
-    );
+    await expect(
+      assertSufficientCredits('shop4.myshopify.com', { templateId: 'not-a-real-template' }),
+    ).rejects.toBeInstanceOf(UnknownTemplateError);
+  });
+
+  it('passes when balance covers an allowed model cost (custom-prompt path)', async () => {
+    await seedShop('shop-custom1.myshopify.com', { creditBalance: 10 });
+    await firestore.collection('allowed_models').doc('flux-kontext-max').set({ creditCost: 4, active: true });
+    await expect(
+      assertSufficientCredits('shop-custom1.myshopify.com', { modelId: 'flux-kontext-max' }),
+    ).resolves.toMatchObject({ creditCost: 4 });
+  });
+
+  it('throws UnknownModelError for a disabled model', async () => {
+    await seedShop('shop-custom2.myshopify.com', { creditBalance: 10 });
+    await firestore.collection('allowed_models').doc('imagen-4').set({ creditCost: 3, active: false });
+    await expect(
+      assertSufficientCredits('shop-custom2.myshopify.com', { modelId: 'imagen-4' }),
+    ).rejects.toBeInstanceOf(UnknownModelError);
   });
 });
 
@@ -142,6 +163,24 @@ describe('creditLedger: settleJobSuccess (deduct only on success, server-recompu
     expect(secondAttempt).toEqual({ alreadyCharged: true, creditsCharged: 4 });
     const shop = await firestore.collection('shops').doc('shop8.myshopify.com').get();
     expect(shop.data().creditBalance).toBe(16); // deducted exactly once
+  });
+
+  it('deducts the allowed-model cost for a custom-prompt job (no templateId)', async () => {
+    await seedShop('shop-custom3.myshopify.com', { creditBalance: 20 });
+    await firestore.collection('allowed_models').doc('flux-kontext-max').set({ creditCost: 4, active: true });
+    await seedJob('job-custom3', { shopDomain: 'shop-custom3.myshopify.com' });
+
+    const result = await settleJobSuccess({
+      jobId: 'job-custom3',
+      shopDomain: 'shop-custom3.myshopify.com',
+      modelId: 'flux-kontext-max',
+      variations: [],
+      modelUsed: 'flux-kontext-max',
+    });
+
+    expect(result).toEqual({ alreadyCharged: false, creditsCharged: 4 });
+    const shop = await firestore.collection('shops').doc('shop-custom3.myshopify.com').get();
+    expect(shop.data().creditBalance).toBe(16);
   });
 });
 

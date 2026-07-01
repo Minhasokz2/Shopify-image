@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed:templates": "node scripts/seedTemplates.js",
+    "seed:models": "node scripts/seedAllowedModels.js",
     "sweep:nurture": "node scripts/runNurtureSweep.js"
   },
   "dependencies": {

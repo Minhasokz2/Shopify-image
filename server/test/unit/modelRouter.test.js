@@ -2,14 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const removeBackground = vi.fn(async () => 'https://r2.example.com/clean.png');
 const generateScene = vi.fn(async () => ['https://fal.example.com/1.png']);
+const generateCustomScene = vi.fn(async () => ['https://fal.example.com/custom1.png', 'https://fal.example.com/custom2.png']);
 const generateUGC = vi.fn(async () => ['https://openai.example.com/1.png']);
 const generateVideoWithFallback = vi.fn(async () => 'https://fal.example.com/video.mp4');
 
-vi.mock('../../src/services/fal.js', () => ({ removeBackground, generateScene }));
+vi.mock('../../src/services/fal.js', () => ({ removeBackground, generateScene, generateCustomScene }));
 vi.mock('../../src/services/openaiImages.js', () => ({ generateUGC }));
 vi.mock('../../src/services/videoGeneration.js', () => ({ generateVideoWithFallback }));
 
-const { routeModel, executeGeneration, UnknownContentTypeError } = await import('../../src/services/modelRouter.js');
+const { routeModel, executeGeneration, executeCustomGeneration, UnknownContentTypeError } = await import(
+  '../../src/services/modelRouter.js'
+);
 
 const TEMPLATES = {
   'studio-white': { preferredModel: 'flux-kontext-max' },
@@ -114,5 +117,36 @@ describe('executeGeneration', () => {
     });
 
     expect(generateUGC).toHaveBeenCalledWith(expect.objectContaining({ personaSettings }));
+  });
+});
+
+describe('executeCustomGeneration', () => {
+  it('removes the background from every selected source image, then calls generateCustomScene with the merchant prompt and picked model', async () => {
+    const result = await executeCustomGeneration({
+      model: 'flux-kontext-max',
+      sourceImageUrls: ['https://shop.example.com/a.png', 'https://shop.example.com/b.png'],
+      customPrompt: 'Place both products together on a marble countertop',
+    });
+
+    expect(removeBackground).toHaveBeenCalledTimes(2);
+    expect(removeBackground).toHaveBeenCalledWith('https://shop.example.com/a.png');
+    expect(removeBackground).toHaveBeenCalledWith('https://shop.example.com/b.png');
+    expect(generateCustomScene).toHaveBeenCalledWith({
+      model: 'flux-kontext-max',
+      cleanImageUrls: ['https://r2.example.com/clean.png', 'https://r2.example.com/clean.png'],
+      prompt: 'Place both products together on a marble countertop',
+    });
+    expect(result.model).toBe('flux-kontext-max');
+    expect(result.variationUrls).toEqual(['https://fal.example.com/custom1.png', 'https://fal.example.com/custom2.png']);
+  });
+
+  it('does not use routeModel — the merchant-picked model is used as-is, never overridden', async () => {
+    await executeCustomGeneration({
+      model: 'flux-kontext-pro',
+      sourceImageUrls: ['https://shop.example.com/skincare.png'],
+      customPrompt: 'A skincare bottle on a spa-style backdrop',
+    });
+
+    expect(generateCustomScene).toHaveBeenCalledWith(expect.objectContaining({ model: 'flux-kontext-pro' }));
   });
 });

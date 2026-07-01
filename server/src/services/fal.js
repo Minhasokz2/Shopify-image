@@ -11,6 +11,14 @@ const SCENE_ENDPOINTS = {
   'imagen-4': 'fal-ai/imagen4',
 };
 
+// Multi-image reference variants — verified live against fal.ai's model catalog. Only some
+// scene models have one; a model missing here simply can't be used with more than one
+// reference image (enforced by allowedModelsRepo's supportsMultiImage flag at the CMS level).
+const SCENE_MULTI_IMAGE_ENDPOINTS = {
+  'flux-kontext-max': 'fal-ai/flux-pro/kontext/max/multi',
+  'flux-kontext-pro': 'fal-ai/flux-pro/kontext/multi',
+};
+
 const VIDEO_ENDPOINTS = {
   'seedance-fast': 'bytedance/seedance-2.0/fast/image-to-video',
   'kling-3': 'kling/kling-3.0/image-to-video',
@@ -40,6 +48,28 @@ export async function generateScene({ model, cleanImageUrl, promptTemplate, prod
       image_url: cleanImageUrl,
       num_images: 4,
     },
+  });
+  return result.data.images.map((img) => img.url);
+}
+
+// Custom-prompt scene generation (merchant writes their own prompt and picks an admin-allowed
+// model, rather than using a fixed-prompt template). Routes to the model's multi-image variant
+// when more than one reference image was selected; falls back to the standard single-image
+// endpoint for exactly one, since that's the better-known, already-proven path.
+export async function generateCustomScene({ model, cleanImageUrls, prompt }) {
+  if (cleanImageUrls.length > 1) {
+    const endpoint = SCENE_MULTI_IMAGE_ENDPOINTS[model];
+    if (!endpoint) throw new Error(`Model "${model}" does not support multi-image reference`);
+    const result = await fal.subscribe(endpoint, {
+      input: { prompt, image_urls: cleanImageUrls, num_images: 4 },
+    });
+    return result.data.images.map((img) => img.url);
+  }
+
+  const endpoint = SCENE_ENDPOINTS[model];
+  if (!endpoint) throw new Error(`Unknown scene model: ${model}`);
+  const result = await fal.subscribe(endpoint, {
+    input: { prompt, image_url: cleanImageUrls[0], num_images: 4 },
   });
   return result.data.images.map((img) => img.url);
 }

@@ -78,7 +78,7 @@ export default function ProductPicker() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id));
 
   const handleContinue = () => {
-    navigate('/templates', { state: { selectedProducts } });
+    navigate('/generate-method', { state: { selectedProducts } });
   };
 
   return (

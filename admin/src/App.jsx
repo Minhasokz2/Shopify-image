@@ -1,13 +1,20 @@
 import { useState } from 'react';
-import { Frame, Page, Card, BlockStack, Text, TextField, Button, Banner } from '@shopify/polaris';
+import { Frame, Page, Card, BlockStack, Text, TextField, Button, Banner, Tabs } from '@shopify/polaris';
 import { getStoredAdminKey, storeAdminKey, clearStoredAdminKey, adminClient } from './api/adminClient.js';
 import { TemplateManager } from './components/TemplateManager.jsx';
+import { ModelManager } from './components/ModelManager.jsx';
+
+const SECTIONS = [
+  { id: 'templates', content: 'Templates' },
+  { id: 'models', content: 'Allowed models' },
+];
 
 export default function App() {
   const [adminKey, setAdminKey] = useState(() => getStoredAdminKey());
   const [keyInput, setKeyInput] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [selectedSection, setSelectedSection] = useState(0);
 
   const handleLogin = async () => {
     setLoginError(null);
@@ -76,7 +83,14 @@ export default function App() {
 
   return (
     <Frame>
-      <TemplateManager onLogout={handleLogout} />
+      <div style={{ borderBottom: '1px solid var(--p-color-border)' }}>
+        <Tabs tabs={SECTIONS} selected={selectedSection} onSelect={setSelectedSection} />
+      </div>
+      {SECTIONS[selectedSection].id === 'templates' ? (
+        <TemplateManager onLogout={handleLogout} />
+      ) : (
+        <ModelManager onLogout={handleLogout} />
+      )}
     </Frame>
   );
 }

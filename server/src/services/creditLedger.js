@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { firestore, FieldValue } from '../lib/firestore.js';
 import { shopsRepo } from '../models/shopsRepo.js';
 import { templatesRepo } from '../models/templatesRepo.js';
+import { allowedModelsRepo } from '../models/allowedModelsRepo.js';
 import { JOB_STATUS } from '../models/jobsRepo.js';
 
 export class InsufficientCreditsError extends Error {
@@ -19,38 +20,61 @@ export class UnknownTemplateError extends Error {
   }
 }
 
-// Pre-flight only — does NOT deduct anything. Cost is ALWAYS read from the template record,
-// never trusted from the client (spec Section 13/17). Real deduction happens exactly once, at
-// job success, in settleJobSuccess below.
-export async function assertSufficientCredits(shopDomain, templateId) {
-  const template = await templatesRepo.getById(templateId);
-  if (!template) throw new UnknownTemplateError(templateId);
+export class UnknownModelError extends Error {
+  constructor(modelId) {
+    super(`Unknown or disabled modelId: ${modelId}`);
+    this.statusCode = 400;
+  }
+}
+
+// A job is priced by exactly one of two catalogs: a template (fixed prompt+model+cost) or an
+// admin-allowed model (merchant supplies their own prompt, cost is per-model). Every cost lookup
+// in this file goes through here so there's one place that decides which catalog wins — never
+// both, never trusted from the client either way (spec Section 13/17).
+async function resolvePricing({ templateId, modelId }) {
+  if (templateId) {
+    const template = await templatesRepo.getById(templateId);
+    if (!template) throw new UnknownTemplateError(templateId);
+    return { creditCost: template.creditCost, record: template };
+  }
+  const model = await allowedModelsRepo.getById(modelId);
+  if (!model || !model.active) throw new UnknownModelError(modelId);
+  return { creditCost: model.creditCost, record: model };
+}
+
+// Pre-flight only — does NOT deduct anything. Cost is ALWAYS read from the template/model
+// record, never trusted from the client. Real deduction happens exactly once, at job success,
+// in settleJobSuccess below.
+export async function assertSufficientCredits(shopDomain, { templateId, modelId } = {}) {
+  const { creditCost, record } = await resolvePricing({ templateId, modelId });
 
   const shop = await shopsRepo.getByDomain(shopDomain);
   const isUnlimited = shop?.plan === 'unlimited';
-  if (!isUnlimited && (shop?.creditBalance ?? 0) < template.creditCost) {
-    throw new InsufficientCreditsError(template.creditCost, shop?.creditBalance ?? 0);
+  if (!isUnlimited && (shop?.creditBalance ?? 0) < creditCost) {
+    throw new InsufficientCreditsError(creditCost, shop?.creditBalance ?? 0);
   }
-  return template;
+  return record;
 }
 
 // Called by the job worker exactly once, at the moment a job's generation succeeds. Re-reads the
-// template's *current* cost inside the transaction (a template's price could have changed since
-// the job was created) and atomically: (1) transitions the job to "succeeded" exactly once —
+// template/model's *current* cost inside the transaction (its price could have changed since the
+// job was created) and atomically: (1) transitions the job to "succeeded" exactly once —
 // re-running this for an already-succeeded job is a no-op, so a retried worker task can never
 // double-charge — (2) decrements the shop's balance (skipped entirely for unlimited-plan shops),
 // and (3) writes a ledger entry, all in one transaction.
-export async function settleJobSuccess({ jobId, shopDomain, templateId, variations, modelUsed }) {
+export async function settleJobSuccess({ jobId, shopDomain, templateId, modelId, variations, modelUsed }) {
   const jobRef = firestore.collection('jobs').doc(jobId);
   const shopRef = shopsRepo.getRef(shopDomain);
-  const templateRef = firestore.collection('templates').doc(templateId);
+  const pricingRef = templateId
+    ? firestore.collection('templates').doc(templateId)
+    : firestore.collection('allowed_models').doc(modelId);
   const ledgerRef = firestore.collection('transactions').doc(`job_${jobId}`);
 
   return firestore.runTransaction(async (tx) => {
-    const [jobDoc, shopDoc, templateDoc] = await Promise.all([
+    const [jobDoc, shopDoc, pricingDoc] = await Promise.all([
       tx.get(jobRef),
       tx.get(shopRef),
-      tx.get(templateRef),
+      tx.get(pricingRef),
     ]);
 
     if (!jobDoc.exists) throw new Error(`Job not found: ${jobId}`);
@@ -60,11 +84,12 @@ export async function settleJobSuccess({ jobId, shopDomain, templateId, variatio
       return { alreadyCharged: true, creditsCharged: job.creditsCharged };
     }
     if (!shopDoc.exists) throw new Error(`Shop not found: ${shopDomain}`);
-    if (!templateDoc.exists) throw new UnknownTemplateError(templateId);
+    if (!pricingDoc.exists) {
+      throw templateId ? new UnknownTemplateError(templateId) : new UnknownModelError(modelId);
+    }
 
     const shop = shopDoc.data();
-    const template = templateDoc.data();
-    const cost = template.creditCost;
+    const cost = pricingDoc.data().creditCost;
     const isUnlimited = shop.plan === 'unlimited';
 
     tx.update(jobRef, {
@@ -86,7 +111,8 @@ export async function settleJobSuccess({ jobId, shopDomain, templateId, variatio
       amountUSD: 0,
       creditsAdded: -cost,
       jobId,
-      templateId,
+      templateId: templateId ?? null,
+      modelId: modelId ?? null,
       createdAt: FieldValue.serverTimestamp(),
     });
 

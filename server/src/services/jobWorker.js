@@ -3,7 +3,7 @@ import { jobsRepo, JOB_STATUS } from '../models/jobsRepo.js';
 import { batchesRepo } from '../models/batchesRepo.js';
 import { templatesRepo } from '../models/templatesRepo.js';
 import { shopsRepo } from '../models/shopsRepo.js';
-import { executeGeneration } from './modelRouter.js';
+import { executeGeneration, executeCustomGeneration } from './modelRouter.js';
 import { settleJobSuccess, settleJobFailure } from './creditLedger.js';
 import { persistMediaToCloudinary } from '../lib/cloudinary.js';
 import { logger } from '../lib/logger.js';
@@ -83,35 +83,10 @@ class JobWorker {
       }
 
       await jobsRepo.markProcessing(jobId);
-      const [template, shop] = await Promise.all([
-        templatesRepo.getById(job.templateId),
-        shopsRepo.getByDomain(shopDomain),
-      ]);
-      if (!template) {
-        throw new Error(`Job ${jobId} references unknown templateId: ${job.templateId}`);
-      }
 
-      const { model, cleanImageUrl, variationUrls } = await executeGeneration({
-        contentType: job.contentType,
-        productCategoryTag: job.productCategoryTag,
-        templateId: job.templateId,
-        templates: { [job.templateId]: template },
-        sourceImageUrl: job.productImageUrl,
-        cleanImageUrl: job.cleanImageUrl || undefined,
-        promptTemplate: template.promptTemplate,
-        productAttributes: job.productAttributes,
-        personaSettings: job.personaSettings,
-        brandStyleProfile: shop?.brandStyleProfile ?? null,
-        motionPrompt: template.promptTemplate,
-        aspectRatio: job.aspectRatio,
-      });
-
-      // Persist the background-removed intermediate so a later job (e.g. a video generated
-      // from the same product) can reuse it via `reuseCleanImageFromJobId` without re-running
-      // birefnet.
-      if (!job.cleanImageUrl) {
-        await jobsRepo.getRef(jobId).update({ cleanImageUrl });
-      }
+      const { model, variationUrls } = job.modelId
+        ? await this.runCustomGeneration(job)
+        : await this.runTemplateGeneration(job, shopDomain);
 
       // Cloudinary derives the delivery format from the uploaded content itself — no file
       // extension belongs on a public_id the way it did on an R2 object key.
@@ -126,7 +101,8 @@ class JobWorker {
       const { creditsCharged } = await settleJobSuccess({
         jobId,
         shopDomain,
-        templateId: job.templateId,
+        templateId: job.templateId ?? undefined,
+        modelId: job.modelId ?? undefined,
         variations,
         modelUsed: model,
       });
@@ -141,6 +117,52 @@ class JobWorker {
     } finally {
       this.trackEnd(shopDomain);
     }
+  }
+
+  // Fixed-prompt path: template supplies the model, prompt, and (via reuseCleanImageFromJobId)
+  // the option to skip a redundant background-removal pass.
+  async runTemplateGeneration(job, shopDomain) {
+    const [template, shop] = await Promise.all([
+      templatesRepo.getById(job.templateId),
+      shopsRepo.getByDomain(shopDomain),
+    ]);
+    if (!template) {
+      throw new Error(`Job ${job.id} references unknown templateId: ${job.templateId}`);
+    }
+
+    const { model, cleanImageUrl, variationUrls } = await executeGeneration({
+      contentType: job.contentType,
+      productCategoryTag: job.productCategoryTag,
+      templateId: job.templateId,
+      templates: { [job.templateId]: template },
+      sourceImageUrl: job.productImageUrl,
+      cleanImageUrl: job.cleanImageUrl || undefined,
+      promptTemplate: template.promptTemplate,
+      productAttributes: job.productAttributes,
+      personaSettings: job.personaSettings,
+      brandStyleProfile: shop?.brandStyleProfile ?? null,
+      motionPrompt: template.promptTemplate,
+      aspectRatio: job.aspectRatio,
+    });
+
+    // Persist the background-removed intermediate so a later job (e.g. a video generated from
+    // the same product) can reuse it via `reuseCleanImageFromJobId` without re-running birefnet.
+    if (!job.cleanImageUrl) {
+      await jobsRepo.getRef(job.id).update({ cleanImageUrl });
+    }
+
+    return { model, variationUrls };
+  }
+
+  // Custom-prompt path: merchant supplies their own prompt and picked one of the admin's
+  // allowed models directly — no template, no reuseCleanImageFromJobId optimization (there's no
+  // single "the" clean image once multiple source images are combined as reference).
+  async runCustomGeneration(job) {
+    return executeCustomGeneration({
+      model: job.modelId,
+      sourceImageUrls: job.productImageUrls,
+      customPrompt: job.customPrompt,
+    });
   }
 
   async recordBatchOutcome(batchId, succeeded) {

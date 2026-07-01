@@ -1,4 +1,4 @@
-import { removeBackground, generateScene } from './fal.js';
+import { removeBackground, generateScene, generateCustomScene } from './fal.js';
 import { generateUGC } from './openaiImages.js';
 import { generateVideoWithFallback } from './videoGeneration.js';
 
@@ -70,4 +70,15 @@ export async function executeGeneration({
     default:
       throw new UnknownContentTypeError(contentType);
   }
+}
+
+// Custom-prompt scene generation: the merchant picked an admin-allowed model directly and wrote
+// their own prompt, rather than using a template. No routeModel() call — the merchant's model
+// choice is used as-is, not overridden by the color-critical-category logic that applies to
+// template-driven jobs (they picked this model on purpose). Background removal still runs on
+// every selected source image, same two-step pipeline as the template path.
+export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt }) {
+  const cleanImageUrls = await Promise.all(sourceImageUrls.map((url) => removeBackground(url)));
+  const variationUrls = await generateCustomScene({ model, cleanImageUrls, prompt: customPrompt });
+  return { model, cleanImageUrls, variationUrls };
 }

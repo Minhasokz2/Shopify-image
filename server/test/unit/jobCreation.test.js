@@ -1,0 +1,137 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const assertAdultPersona = vi.fn();
+const assertSufficientCredits = vi.fn(async () => ({ creditCost: 4 }));
+const claimJobCreation = vi.fn(async ({ jobId }) => ({ created: true, jobId }));
+const jobWorkerEnqueue = vi.fn();
+const jobsRepoGetById = vi.fn(async () => null);
+
+vi.mock('../../src/services/personaGuard.js', () => ({ assertAdultPersona }));
+vi.mock('../../src/services/creditLedger.js', () => ({ assertSufficientCredits }));
+vi.mock('../../src/services/idempotency.js', () => ({ claimJobCreation }));
+vi.mock('../../src/services/jobWorker.js', () => ({ jobWorker: { enqueue: jobWorkerEnqueue } }));
+vi.mock('../../src/models/jobsRepo.js', () => ({ jobsRepo: { getById: jobsRepoGetById } }));
+
+const { createGenerationJob, generationInputSchema } = await import('../../src/services/jobCreation.js');
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  claimJobCreation.mockImplementation(async ({ jobId }) => ({ created: true, jobId }));
+});
+
+describe('generationInputSchema: template vs custom mode', () => {
+  it('accepts a valid template-mode payload', () => {
+    const result = generationInputSchema.safeParse({
+      productId: 'p1',
+      contentType: 'scene',
+      templateId: 'studio-white',
+      imageUrl: 'https://shop.example.com/a.png',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a valid custom-mode payload with multiple images', () => {
+    const result = generationInputSchema.safeParse({
+      productId: 'p1',
+      contentType: 'scene',
+      modelId: 'flux-kontext-max',
+      customPrompt: 'Combine these two products on a marble table',
+      imageUrls: ['https://shop.example.com/a.png', 'https://shop.example.com/b.png'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a payload mixing template and custom fields', () => {
+    const result = generationInputSchema.safeParse({
+      productId: 'p1',
+      contentType: 'scene',
+      templateId: 'studio-white',
+      modelId: 'flux-kontext-max',
+      customPrompt: 'A prompt',
+      imageUrls: ['https://shop.example.com/a.png'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a payload with neither template nor custom fields', () => {
+    const result = generationInputSchema.safeParse({ productId: 'p1', contentType: 'scene' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects custom mode for a non-scene content type', () => {
+    const result = generationInputSchema.safeParse({
+      productId: 'p1',
+      contentType: 'video',
+      modelId: 'flux-kontext-max',
+      customPrompt: 'A prompt',
+      imageUrls: ['https://shop.example.com/a.png'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects custom mode missing customPrompt', () => {
+    const result = generationInputSchema.safeParse({
+      productId: 'p1',
+      contentType: 'scene',
+      modelId: 'flux-kontext-max',
+      imageUrls: ['https://shop.example.com/a.png'],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('createGenerationJob: custom mode', () => {
+  it('checks credits against the modelId, not a templateId, and stores customPrompt/imageUrls on the job', async () => {
+    await createGenerationJob({
+      shopDomain: 'shop.myshopify.com',
+      idempotencyKey: 'key-1',
+      input: {
+        productId: 'p1',
+        contentType: 'scene',
+        modelId: 'flux-kontext-max',
+        customPrompt: 'A custom scene',
+        imageUrls: ['https://shop.example.com/a.png', 'https://shop.example.com/b.png'],
+      },
+    });
+
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { modelId: 'flux-kontext-max' });
+    expect(claimJobCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobData: expect.objectContaining({
+          templateId: null,
+          modelId: 'flux-kontext-max',
+          customPrompt: 'A custom scene',
+          productImageUrl: null,
+          productImageUrls: ['https://shop.example.com/a.png', 'https://shop.example.com/b.png'],
+        }),
+      }),
+    );
+    expect(jobWorkerEnqueue).toHaveBeenCalled();
+  });
+
+  it('checks credits against the templateId for a template-mode job, leaving modelId/customPrompt null', async () => {
+    await createGenerationJob({
+      shopDomain: 'shop.myshopify.com',
+      idempotencyKey: 'key-2',
+      input: {
+        productId: 'p1',
+        contentType: 'scene',
+        templateId: 'studio-white',
+        imageUrl: 'https://shop.example.com/a.png',
+      },
+    });
+
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { templateId: 'studio-white' });
+    expect(claimJobCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobData: expect.objectContaining({
+          templateId: 'studio-white',
+          modelId: null,
+          customPrompt: null,
+          productImageUrl: 'https://shop.example.com/a.png',
+          productImageUrls: null,
+        }),
+      }),
+    );
+  });
+});

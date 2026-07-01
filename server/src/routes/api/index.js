@@ -4,6 +4,7 @@ import { requireShopContext } from '../../middleware/requireShopContext.js';
 import { httpBurstLimiter } from '../../middleware/rateLimiter.js';
 
 import templatesRouter from './templates.js';
+import modelsRouter from './models.js';
 import productsRouter from './products.js';
 import jobsRouter from './jobs.js';
 import batchesRouter from './batches.js';
@@ -22,6 +23,7 @@ const router = Router();
 router.use(verifySessionToken, requireShopContext, httpBurstLimiter);
 
 router.use(templatesRouter);
+router.use(modelsRouter);
 router.use(productsRouter);
 router.use(jobsRouter);
 router.use(batchesRouter);

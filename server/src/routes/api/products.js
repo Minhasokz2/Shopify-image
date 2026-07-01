@@ -15,6 +15,11 @@ const PRODUCTS_QUERY = `#graphql
           productType
           tags
           featuredImage { url }
+          images(first: 10) {
+            edges {
+              node { url }
+            }
+          }
         }
       }
       pageInfo { hasNextPage endCursor }
@@ -23,12 +28,17 @@ const PRODUCTS_QUERY = `#graphql
 `;
 
 function normalizeProduct(node) {
+  // Full image gallery (up to 10) — feeds the custom-prompt flow's multi-image reference
+  // picker. featuredImage is guaranteed present in this list too when the product has images,
+  // but kept as its own field for the existing single-image template flow.
+  const images = (node.images?.edges ?? []).map(({ node: image }) => image.url);
   return {
     id: node.id,
     title: node.title,
     status: node.status,
     productCategoryTag: (node.productType || node.tags?.[0] || '').toLowerCase() || null,
     imageUrl: node.featuredImage?.url ?? null,
+    images,
   };
 }
 

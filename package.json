@@ -17,6 +17,7 @@
     "build:server": "npm run build -w server --if-present",
     "test": "npm run test -w server && npm run test -w web --if-present",
     "seed:templates": "npm run seed:templates -w server",
+    "seed:models": "npm run seed:models -w server",
     "sweep:nurture": "npm run sweep:nurture -w server",
     "lint": "npm run lint -w server --if-present && npm run lint -w web --if-present"
   },
