@@ -1,6 +1,5 @@
 import { Session } from '@shopify/shopify-api';
 import { firestore } from './firestore.js';
-import { logger } from './logger.js';
 
 const COLLECTION = 'shopify_sessions';
 
@@ -11,34 +10,14 @@ const COLLECTION = 'shopify_sessions';
 export class FirestoreSessionStorage {
   async storeSession(session) {
     const data = session.toObject();
-    // TEMPORARY diagnostic — remove once the reauth loop is root-caused.
-    logger.info(
-      { id: session.id, hasAccessToken: Boolean(data.accessToken), scope: data.scope, expires: data.expires },
-      'DIAG storeSession',
-    );
     await firestore.collection(COLLECTION).doc(session.id).set(serialize(data));
     return true;
   }
 
   async loadSession(id) {
     const doc = await firestore.collection(COLLECTION).doc(id).get();
-    if (!doc.exists) {
-      logger.info({ id }, 'DIAG loadSession: no doc found');
-      return undefined;
-    }
-    const session = new Session(deserialize(doc.data()));
-    // TEMPORARY diagnostic — remove once the reauth loop is root-caused.
-    logger.info(
-      {
-        id,
-        hasAccessToken: Boolean(session.accessToken),
-        scope: session.scope,
-        expires: session.expires,
-        isActive: session.isActive(),
-      },
-      'DIAG loadSession',
-    );
-    return session;
+    if (!doc.exists) return undefined;
+    return new Session(deserialize(doc.data()));
   }
 
   async deleteSession(id) {

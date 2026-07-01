@@ -86,7 +86,7 @@ export function GoogleAuthGate({ children }) {
           <Card>
             <BlockStack gap="400" inlineAlign="center">
               <Text as="h1" variant="headingLg">
-                Sign in to activate VisualKit
+                Sign in to Product Image Generator
               </Text>
               <Text as="p" tone="subdued" alignment="center">
                 For security and to protect free-trial credits from abuse, every store must verify a Google

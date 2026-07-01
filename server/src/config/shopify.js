@@ -47,9 +47,7 @@ export const shopify = shopifyApp({
     hostScheme: appUrl.protocol.replace(':', ''),
     isEmbeddedApp: true,
     billing: BILLING_PLANS,
-    // TEMPORARY: forced to Debug in production to diagnose the reauth loop — revert to
-    // `isProduction ? LogSeverity.Info : LogSeverity.Debug` once root-caused.
-    logger: { level: LogSeverity.Debug },
+    logger: { level: isProduction ? LogSeverity.Info : LogSeverity.Debug },
   },
   auth: {
     path: '/auth',
