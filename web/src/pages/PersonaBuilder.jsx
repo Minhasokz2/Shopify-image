@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Page, Card, BlockStack, Text, Select, TextField, Button, Banner } from '@shopify/polaris';
+import { Page, Card, BlockStack, InlineStack, Text, Select, TextField, Button, Banner } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
+import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const GENDER_PRESENTATION_OPTIONS = [
   { label: 'Feminine', value: 'feminine' },
@@ -21,6 +23,10 @@ export default function PersonaBuilder() {
   const navigate = useNavigate();
   const location = useLocation();
   const { product, template } = location.state ?? {};
+  const { data: creditData } = useCreditBalance();
+  const isUnlimited = creditData?.plan === 'unlimited';
+  const balance = creditData?.creditBalance ?? null;
+  const canAfford = isUnlimited || balance === null || !template || balance >= template.creditCost;
 
   const [genderPresentation, setGenderPresentation] = useState('feminine');
   const [settingOption, setSettingOption] = useState('home casual');
@@ -70,6 +76,7 @@ export default function PersonaBuilder() {
       title="Build your UGC persona"
       subtitle={product ? `For ${product.title}` : undefined}
       backAction={{ content: 'Templates', onAction: () => navigate('/templates') }}
+      titleMetadata={<CreditBalanceBadge />}
     >
       <Card>
         <BlockStack gap="400">
@@ -78,9 +85,16 @@ export default function PersonaBuilder() {
               <p>Go back and pick a product and a UGC template first.</p>
             </Banner>
           ) : (
-            <Text as="p" tone="subdued">
-              Template: {template.name} ({template.creditCost} credits)
-            </Text>
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="p" tone="subdued">
+                Template: {template.name} ({template.creditCost} credits)
+              </Text>
+              {!canAfford ? (
+                <Text as="span" variant="bodySm" tone="critical">
+                  Not enough credits — you have {balance}
+                </Text>
+              ) : null}
+            </InlineStack>
           )}
 
           {submitError ? (
@@ -117,9 +131,9 @@ export default function PersonaBuilder() {
             variant="primary"
             onClick={handleSubmit}
             loading={generateMutation.isPending}
-            disabled={!product || !template}
+            disabled={!product || !template || !canAfford}
           >
-            Generate UGC content
+            {canAfford ? 'Generate UGC content' : 'Not enough credits'}
           </Button>
         </BlockStack>
       </Card>

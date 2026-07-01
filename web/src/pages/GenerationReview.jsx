@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Page,
@@ -17,6 +17,8 @@ import {
 import { useJobPolling } from '../hooks/useJobPolling.js';
 import { apiClient } from '../api/client.js';
 import { BeforeAfterSlider } from '../components/BeforeAfterSlider.jsx';
+import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const IN_PROGRESS_STATUSES = new Set(['pending', 'processing']);
 
@@ -25,12 +27,23 @@ export default function GenerationReview() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useJobPolling(jobId);
   const job = data?.job;
+  const queryClient = useQueryClient();
+  const { data: creditData } = useCreditBalance();
 
   const [approved, setApproved] = useState(() => new Set());
   const [publishError, setPublishError] = useState(null);
   const [publishResult, setPublishResult] = useState(null);
 
   const isVideo = job?.contentType === 'video';
+
+  // The job worker only deducts credits once generation succeeds (see
+  // creditLedger.settleJobSuccess) — the cached balance shown elsewhere in the app is stale
+  // until this fires, so refresh it the moment this job's status flips to succeeded.
+  useEffect(() => {
+    if (job?.status === 'succeeded') {
+      queryClient.invalidateQueries({ queryKey: ['credits'] });
+    }
+  }, [job?.status, queryClient]);
 
   const publishMutation = useMutation({
     mutationFn: () => apiClient.post(`/api/jobs/${jobId}/publish`, { productId: job.productId }),
@@ -93,6 +106,7 @@ export default function GenerationReview() {
     <Page
       title="Review generation"
       backAction={{ content: 'Dashboard', onAction: () => navigate('/') }}
+      titleMetadata={<CreditBalanceBadge />}
     >
       <BlockStack gap="400">
         {error ? (
@@ -134,6 +148,7 @@ export default function GenerationReview() {
                 </Text>
                 <Text as="span" tone="subdued">
                   {job.creditsCharged} credits charged
+                  {creditData ? ` — ${creditData.creditBalance} credits remaining` : ''}
                 </Text>
               </BlockStack>
             </Card>

@@ -15,6 +15,8 @@ import {
   Box,
 } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
+import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const ASPECT_RATIO_OPTIONS = [
   { label: 'Vertical (9:16)', value: '9:16' },
@@ -45,6 +47,12 @@ export default function VideoStudio() {
   const [submitError, setSubmitError] = useState(null);
 
   const selectedTemplate = videoTemplates.find((t) => t.id === selectedTemplateId) ?? null;
+
+  const { data: creditData } = useCreditBalance();
+  const isUnlimited = creditData?.plan === 'unlimited';
+  const balance = creditData?.creditBalance ?? null;
+  const canAfford =
+    isUnlimited || balance === null || !selectedTemplate || balance >= selectedTemplate.creditCost;
 
   const generateMutation = useMutation({
     mutationFn: (body) => apiClient.post('/api/generate', body),
@@ -85,12 +93,22 @@ export default function VideoStudio() {
       title="Video Studio"
       subtitle={product ? `For ${product.title}` : undefined}
       backAction={{ content: 'Templates', onAction: () => navigate('/templates') }}
+      titleMetadata={<CreditBalanceBadge />}
     >
       <Card>
         <BlockStack gap="400">
           {!product ? (
             <Banner tone="warning" title="Missing product">
               <p>Go back and pick a product before creating a video.</p>
+            </Banner>
+          ) : null}
+
+          {selectedTemplate && !canAfford ? (
+            <Banner tone="warning" title="Not enough credits">
+              <p>
+                {selectedTemplate.name} costs {selectedTemplate.creditCost} credits — you have {balance}. Visit
+                the Billing page to top up.
+              </p>
             </Banner>
           ) : null}
 
@@ -118,6 +136,7 @@ export default function VideoStudio() {
             <InlineStack gap="300" wrap>
               {videoTemplates.map((template) => {
                 const isSelected = template.id === selectedTemplateId;
+                const templateAffordable = isUnlimited || balance === null || balance >= template.creditCost;
                 return (
                   <Box
                     key={template.id}
@@ -131,7 +150,7 @@ export default function VideoStudio() {
                       <Text as="h3" fontWeight="medium">
                         {template.name}
                       </Text>
-                      <Badge>{`${template.creditCost} credits`}</Badge>
+                      <Badge tone={templateAffordable ? undefined : 'critical'}>{`${template.creditCost} credits`}</Badge>
                       <Button
                         pressed={isSelected}
                         onClick={() => setSelectedTemplateId(template.id)}
@@ -156,9 +175,9 @@ export default function VideoStudio() {
             variant="primary"
             onClick={handleSubmit}
             loading={generateMutation.isPending}
-            disabled={!product || !selectedTemplate}
+            disabled={!product || !selectedTemplate || !canAfford}
           >
-            Generate video
+            {canAfford ? 'Generate video' : 'Not enough credits'}
           </Button>
         </BlockStack>
       </Card>

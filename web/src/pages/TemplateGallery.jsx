@@ -16,6 +16,8 @@ import {
   Box,
 } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
+import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const TABS = [
   { id: 'scene', content: 'Scenes' },
@@ -36,7 +38,13 @@ export default function TemplateGallery() {
   const selectedProducts = location.state?.selectedProducts ?? [];
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const { data, isLoading, error } = useTemplates();
+  const { data: creditData } = useCreditBalance();
   const [generateError, setGenerateError] = useState(null);
+
+  // Unlimited-plan shops never run short, so cost-vs-balance comparisons only apply to
+  // metered plans — server-side this same distinction lives in creditLedger.assertSufficientCredits.
+  const isUnlimited = creditData?.plan === 'unlimited';
+  const balance = creditData?.creditBalance ?? null;
 
   const activeCategory = TABS[selectedTabIndex].id;
 
@@ -100,6 +108,7 @@ export default function TemplateGallery() {
           : 'No products selected'
       }
       backAction={{ content: 'Products', onAction: () => navigate('/products') }}
+      titleMetadata={<CreditBalanceBadge />}
     >
       <BlockStack gap="400">
         {selectedProducts.length === 0 ? (
@@ -133,33 +142,43 @@ export default function TemplateGallery() {
               </EmptyState>
             ) : (
               <InlineStack gap="300" wrap>
-                {templates.map((template) => (
-                  <Box
-                    key={template.id}
-                    padding="300"
-                    borderWidth="025"
-                    borderColor="border"
-                    borderRadius="200"
-                    minWidth="220px"
-                  >
-                    <BlockStack gap="200">
-                      <Text as="h3" fontWeight="medium">
-                        {template.name}
-                      </Text>
-                      <InlineStack gap="150">
-                        <Badge>{`${template.creditCost} credits`}</Badge>
-                        {template.setting ? <Badge tone="info">{template.setting}</Badge> : null}
-                      </InlineStack>
-                      <Button
-                        onClick={() => handleSelectTemplate(template)}
-                        loading={generateMutation.isPending}
-                        disabled={selectedProducts.length === 0}
-                      >
-                        {template.category === 'scene' ? 'Generate' : 'Continue'}
-                      </Button>
-                    </BlockStack>
-                  </Box>
-                ))}
+                {templates.map((template) => {
+                  // A soft, client-side heads-up only — the server always re-checks the real
+                  // balance in creditLedger.assertSufficientCredits before a job is created.
+                  const canAfford = isUnlimited || balance === null || balance >= template.creditCost;
+                  return (
+                    <Box
+                      key={template.id}
+                      padding="300"
+                      borderWidth="025"
+                      borderColor="border"
+                      borderRadius="200"
+                      minWidth="220px"
+                    >
+                      <BlockStack gap="200">
+                        <Text as="h3" fontWeight="medium">
+                          {template.name}
+                        </Text>
+                        <InlineStack gap="150">
+                          <Badge tone={canAfford ? undefined : 'critical'}>{`${template.creditCost} credits`}</Badge>
+                          {template.setting ? <Badge tone="info">{template.setting}</Badge> : null}
+                        </InlineStack>
+                        {!canAfford ? (
+                          <Text as="span" variant="bodySm" tone="critical">
+                            Not enough credits ({balance} left)
+                          </Text>
+                        ) : null}
+                        <Button
+                          onClick={() => handleSelectTemplate(template)}
+                          loading={generateMutation.isPending}
+                          disabled={selectedProducts.length === 0 || !canAfford}
+                        >
+                          {!canAfford ? 'Top up to use' : template.category === 'scene' ? 'Generate' : 'Continue'}
+                        </Button>
+                      </BlockStack>
+                    </Box>
+                  );
+                })}
               </InlineStack>
             )}
           </Box>
