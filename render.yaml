@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: visualkit
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start --prefix server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
