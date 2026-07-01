@@ -20,7 +20,7 @@ const executeGeneration = vi.fn(async () => ({
 
 const settleJobSuccess = vi.fn(async () => ({ alreadyCharged: false, creditsCharged: 4 }));
 const settleJobFailure = vi.fn(async () => {});
-const persistMediaToR2 = vi.fn(async (url) => `https://r2.example.com/${url.split('/').pop()}`);
+const persistMediaToCloudinary = vi.fn(async (url) => `https://res.cloudinary.com/${url.split('/').pop()}`);
 const captureJobFailure = vi.fn();
 
 vi.mock('../../src/models/jobsRepo.js', () => ({
@@ -32,7 +32,7 @@ vi.mock('../../src/models/templatesRepo.js', () => ({ templatesRepo: { getById: 
 vi.mock('../../src/models/shopsRepo.js', () => ({ shopsRepo: { getByDomain: vi.fn(async () => ({ brandStyleProfile: null })) } }));
 vi.mock('../../src/services/modelRouter.js', () => ({ executeGeneration }));
 vi.mock('../../src/services/creditLedger.js', () => ({ settleJobSuccess, settleJobFailure }));
-vi.mock('../../src/lib/r2.js', () => ({ persistMediaToR2 }));
+vi.mock('../../src/lib/cloudinary.js', () => ({ persistMediaToCloudinary }));
 vi.mock('../../src/lib/sentry.js', () => ({ captureJobFailure }));
 
 const { JobWorker, PER_SHOP_CONCURRENCY } = await import('../../src/services/jobWorker.js');
@@ -142,7 +142,7 @@ describe('JobWorker: enqueue concurrency limiting', () => {
 });
 
 describe('JobWorker: runJob success/failure settlement', () => {
-  it('marks processing, generates, persists variations to R2, and settles success', async () => {
+  it('marks processing, generates, persists variations to Cloudinary, and settles success', async () => {
     executeGeneration.mockResolvedValue({
       model: 'flux-kontext-max',
       cleanImageUrl: 'https://fal.example.com/clean.png',
@@ -161,7 +161,7 @@ describe('JobWorker: runJob success/failure settlement', () => {
     await worker.runJob('job-ok', 'shop.myshopify.com');
 
     expect(markProcessing).toHaveBeenCalledWith('job-ok');
-    expect(persistMediaToR2).toHaveBeenCalledTimes(2);
+    expect(persistMediaToCloudinary).toHaveBeenCalledTimes(2);
     expect(settleJobSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: 'job-ok',

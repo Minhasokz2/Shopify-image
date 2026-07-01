@@ -25,7 +25,7 @@ npm run dev                       # runs server + web concurrently
 
 ## Environment variables
 
-See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Cloudflare R2 credentials, `RESEND_API_KEY`, `SENTRY_DSN`, `ADMIN_API_KEY`). Each workspace also has its own scoped `.env.example`.
+See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Cloudinary credentials, `RESEND_API_KEY`, `SENTRY_DSN`, `ADMIN_API_KEY`). Each workspace also has its own scoped `.env.example`.
 
 ## Testing
 
@@ -35,7 +35,7 @@ npm test
 
 Runs Vitest across `server/` (unit tests for the credit ledger, idempotency, the adult-only persona guard, model routing, webhook HMAC verification, session-token validation, and the job worker's concurrency limiting; integration tests against the Express app via `supertest`) and `web/`.
 
-**Known limitation:** this environment has no live API keys for FAL.ai, OpenAI, Anthropic, WaveSpeed, Firebase, Cloudflare R2, Resend, or Sentry, and no real Shopify development store. All tests mock these SDKs at the module boundary. Before shipping, run one manual end-to-end smoke test per content type (scene / UGC / video) and one per billing flow (one-time pack, subscription) against a real dev store and real credentials — this has not been done as part of this build.
+**Known limitation:** this environment has no live API keys for FAL.ai, OpenAI, Anthropic, WaveSpeed, Firebase, Resend, or Sentry, and no real Shopify development store (Cloudinary is the one exception — see below). All tests mock these SDKs at the module boundary. Before shipping, run one manual end-to-end smoke test per content type (scene / UGC / video) and one per billing flow (one-time pack, subscription) against a real dev store and real credentials — this has not been done as part of this build.
 
 ## Seeding templates
 

@@ -26,11 +26,9 @@ const schema = z.object({
 
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1),
 
-  CLOUDFLARE_R2_ACCESS_KEY: z.string().min(1),
-  CLOUDFLARE_R2_SECRET_KEY: z.string().min(1),
-  CLOUDFLARE_R2_BUCKET: z.string().min(1),
-  CLOUDFLARE_R2_ACCOUNT_ID: z.string().min(1),
-  CLOUDFLARE_R2_PUBLIC_URL: z.string().url().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().min(1),
+  CLOUDINARY_API_KEY: z.string().min(1),
+  CLOUDINARY_API_SECRET: z.string().min(1),
 
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.string().optional(),

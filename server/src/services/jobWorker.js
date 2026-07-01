@@ -5,7 +5,7 @@ import { templatesRepo } from '../models/templatesRepo.js';
 import { shopsRepo } from '../models/shopsRepo.js';
 import { executeGeneration } from './modelRouter.js';
 import { settleJobSuccess, settleJobFailure } from './creditLedger.js';
-import { persistMediaToR2 } from '../lib/r2.js';
+import { persistMediaToCloudinary } from '../lib/cloudinary.js';
 import { logger } from '../lib/logger.js';
 import { captureJobFailure } from '../lib/sentry.js';
 
@@ -113,10 +113,11 @@ class JobWorker {
         await jobsRepo.getRef(jobId).update({ cleanImageUrl });
       }
 
-      const extension = job.contentType === 'video' ? 'mp4' : 'png';
+      // Cloudinary derives the delivery format from the uploaded content itself — no file
+      // extension belongs on a public_id the way it did on an R2 object key.
       const variations = await Promise.all(
         variationUrls.map(async (url, index) => ({
-          url: await persistMediaToR2(url, `generated/${shopDomain}/${jobId}/${index}.${extension}`),
+          url: await persistMediaToCloudinary(url, `generated/${shopDomain}/${jobId}/${index}`),
           approved: false,
           publishedToShopify: false,
         })),
