@@ -22,4 +22,8 @@ export const templatesRepo = {
     const snapshot = await repo.collection().where('category', '==', category).get();
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   },
+
+  async delete(templateId) {
+    await repo.collection().doc(templateId).delete();
+  },
 };

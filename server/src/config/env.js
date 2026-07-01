@@ -34,6 +34,11 @@ const schema = z.object({
 
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.string().optional(),
+
+  // Gates the platform-admin template-management surface (/admin/api/*) — separate from every
+  // Shopify shop's session token, since the template catalog is shared across all shops, not
+  // scoped to one. Not a merchant-facing credential.
+  ADMIN_API_KEY: z.string().min(16, 'ADMIN_API_KEY must be at least 16 characters'),
 });
 
 function loadEnv() {

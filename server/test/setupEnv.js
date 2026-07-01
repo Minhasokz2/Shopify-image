@@ -26,3 +26,4 @@ process.env.CLOUDFLARE_R2_SECRET_KEY ??= 'test_r2_secret';
 process.env.CLOUDFLARE_R2_BUCKET ??= 'test-bucket';
 process.env.CLOUDFLARE_R2_ACCOUNT_ID ??= 'test-account-id';
 process.env.RESEND_API_KEY ??= 'test_resend_key';
+process.env.ADMIN_API_KEY ??= 'test_admin_key_at_least_16_chars';

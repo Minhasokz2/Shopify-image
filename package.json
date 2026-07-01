@@ -6,12 +6,14 @@
   "workspaces": [
     "server",
     "web",
-    "marketing"
+    "marketing",
+    "admin"
   ],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
     "dev:marketing": "npm run dev -w marketing",
-    "build": "npm run build -w web && npm run build -w marketing",
+    "dev:admin": "npm run dev -w admin",
+    "build": "npm run build -w web && npm run build -w marketing && npm run build -w admin",
     "build:server": "npm run build -w server --if-present",
     "test": "npm run test -w server && npm run test -w web --if-present",
     "seed:templates": "npm run seed:templates -w server",

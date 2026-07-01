@@ -9,9 +9,11 @@ import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.js';
 import webhooksRouter from './routes/webhooks.js';
 import apiRouter from './routes/api/index.js';
+import adminRouter from './routes/admin/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST_PATH = path.join(__dirname, '../../web/dist');
+const ADMIN_DIST_PATH = path.join(__dirname, '../../admin/dist');
 
 // Split from index.js so tests can import the Express app directly with supertest, without
 // binding a real port.
@@ -26,6 +28,14 @@ export function createApp() {
 
   app.use(express.json());
   app.use(shopify.cspHeaders());
+
+  // Mounted before /auth and the merchant-facing catch-all below so /admin/* is never swallowed
+  // by the embedded-app's SPA fallback route. Gated by its own admin key, not a Shopify session
+  // — this manages the template catalog shared across every shop, not one shop's own data.
+  app.use('/admin/api', adminRouter);
+  if (fs.existsSync(ADMIN_DIST_PATH)) {
+    app.use('/admin', express.static(ADMIN_DIST_PATH));
+  }
 
   app.use(authRouter);
   app.use('/api', apiRouter);

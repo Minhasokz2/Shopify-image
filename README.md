@@ -4,10 +4,11 @@ AI product photography, UGC-style on-model content, and short product videos for
 
 ## Monorepo layout
 
-This is an npm-workspaces monorepo with three independently runnable projects:
+This is an npm-workspaces monorepo with four independently runnable projects:
 
 - **`server/`** — Node/Express backend. Shopify OAuth, session-token auth, webhook handling, the two-step generation pipeline, model routing across FAL.ai / OpenAI / Anthropic / WaveSpeed, credit ledger + Shopify billing, Firestore persistence, an in-process job queue, and Resend email.
-- **`web/`** — The embedded admin app: Vite + React + Polaris + Shopify App Bridge.
+- **`web/`** — The embedded merchant-facing app: Vite + React + Polaris + Shopify App Bridge.
+- **`admin/`** — A separate, non-Shopify-embedded tool for managing the shared template catalog (create/edit/delete templates, assign prompts/models/costs). Gated by `ADMIN_API_KEY`, not a Shopify session — templates aren't scoped per shop, so there's no "shop" to authenticate as here. See "Managing templates" below.
 - **`marketing/`** — The public marketing site (Home, Pricing, Features, FAQ, Privacy, Terms, Blog stub). Built here as a subfolder rather than a separate repo because this session's GitHub access is scoped to a single repository; it's structured to be split into its own repo/Cloudflare Pages project later with no code changes.
 
 ## Getting started
@@ -24,7 +25,7 @@ npm run dev                       # runs server + web concurrently
 
 ## Environment variables
 
-See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Cloudflare R2 credentials, `RESEND_API_KEY`, `SENTRY_DSN`). Each workspace also has its own scoped `.env.example`.
+See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Cloudflare R2 credentials, `RESEND_API_KEY`, `SENTRY_DSN`, `ADMIN_API_KEY`). Each workspace also has its own scoped `.env.example`.
 
 ## Testing
 
@@ -44,6 +45,18 @@ The app is unusable without the `templates` Firestore collection populated (noth
 node scripts/seedTemplates.js
 ```
 
+## Managing templates
+
+Beyond the initial seed, templates are managed through the `admin/` tool rather than by editing Firestore directly:
+
+```bash
+npm run dev -w admin      # local dev, served at http://localhost:5174
+# or, once built:
+npm run build -w admin    # server/src/app.js serves the build at /admin
+```
+
+Sign in with `ADMIN_API_KEY` (set in `server/.env`). The catalog is shared across every merchant shop, so create/edit/delete here takes effect for all of them immediately — there is no per-shop template customization. The `preferredModel` allowed for a template is constrained by its `category` (scene → FLUX/Imagen, ugc → GPT Image 2, video → Seedance/Kling/Wan) — the admin UI only offers valid combinations, and the server rejects an invalid one regardless.
+
 ## Firestore indexes
 
 See `scripts/createFirestoreIndexes.md` for the composite indexes the job history and batch views require.
@@ -52,6 +65,7 @@ See `scripts/createFirestoreIndexes.md` for the composite indexes the job histor
 
 - `server/` → Render (Node web service).
 - `web/` → built by Vite, served by `server/` in production (or as a static asset behind the same domain — see `server/src/app.js`).
+- `admin/` → also built by Vite and served by `server/` in production, at `/admin` — no separate hosting needed.
 - `marketing/` → Cloudflare Pages, pointed at the `marketing/` subfolder's build output.
 
 ## Architecture notes
