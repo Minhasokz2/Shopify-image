@@ -1,5 +1,6 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import { NavMenu } from '@shopify/app-bridge-react';
+import { Box, InlineStack } from '@shopify/polaris';
 import Dashboard from './pages/Dashboard.jsx';
 import ProductPicker from './pages/ProductPicker.jsx';
 import TemplateGallery from './pages/TemplateGallery.jsx';
@@ -12,23 +13,46 @@ import BrandSettings from './pages/BrandSettings.jsx';
 import Billing from './pages/Billing.jsx';
 import Referrals from './pages/Referrals.jsx';
 
+const NAV_LINKS = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/products', label: 'Products' },
+  { to: '/templates', label: 'Templates' },
+  { to: '/bulk', label: 'Bulk Queue' },
+  { to: '/history', label: 'Job History' },
+  { to: '/brand', label: 'Brand Settings' },
+  { to: '/billing', label: 'Billing' },
+  { to: '/referrals', label: 'Referrals' },
+];
+
+// True only inside the Shopify admin iframe, where App Bridge's CDN script sets this global.
+// Outside of it, NavMenu's children would otherwise dump as raw unstyled <a> tags into the
+// page — there's no Shopify chrome present to consume them as a portal target.
+const isEmbedded = typeof window !== 'undefined' && Boolean(window.shopify);
+
 export default function App() {
   return (
     <>
       {/* Rendered by the Shopify admin's own chrome, not in-page — see
           https://shopify.dev/docs/api/app-bridge-library/react-components/navmenu */}
       <NavMenu>
-        <Link to="/" rel="home">
-          Dashboard
-        </Link>
-        <Link to="/products">Products</Link>
-        <Link to="/templates">Templates</Link>
-        <Link to="/bulk">Bulk Queue</Link>
-        <Link to="/history">Job History</Link>
-        <Link to="/brand">Brand Settings</Link>
-        <Link to="/billing">Billing</Link>
-        <Link to="/referrals">Referrals</Link>
+        {NAV_LINKS.map(({ to, label }) => (
+          <Link key={to} to={to} rel={to === '/' ? 'home' : undefined}>
+            {label}
+          </Link>
+        ))}
       </NavMenu>
+
+      {!isEmbedded && (
+        <Box background="bg-surface" borderBlockEndWidth="025" borderColor="border" padding="300">
+          <InlineStack gap="400" wrap={false}>
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link key={to} to={to} style={{ fontWeight: 600, color: 'var(--p-color-text)', textDecoration: 'none' }}>
+                {label}
+              </Link>
+            ))}
+          </InlineStack>
+        </Box>
+      )}
 
       <Routes>
         <Route path="/" element={<Dashboard />} />
