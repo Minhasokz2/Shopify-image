@@ -49,7 +49,7 @@ function signedRequest(app, path, payload) {
     .set('X-Shopify-Topic', path.slice(1).replace('/', '/'))
     .set('X-Shopify-Shop-Domain', SHOP)
     .set('X-Shopify-Webhook-Id', 'wh-test-1')
-    .set('X-Shopify-Api-Version', '2026-07')
+    .set('X-Shopify-Api-Version', '2026-04')
     .send(rawBody);
 }
 
@@ -81,7 +81,7 @@ describe('POST /webhooks/app/uninstalled', () => {
       .set('X-Shopify-Topic', 'app/uninstalled')
       .set('X-Shopify-Shop-Domain', SHOP)
       .set('X-Shopify-Webhook-Id', 'wh-test-2')
-      .set('X-Shopify-Api-Version', '2026-07')
+      .set('X-Shopify-Api-Version', '2026-04')
       .send(rawBody);
 
     expect(res.status).toBe(401);
@@ -103,7 +103,7 @@ describe('POST /webhooks/app/uninstalled', () => {
       .set('X-Shopify-Topic', 'app/uninstalled')
       .set('X-Shopify-Shop-Domain', SHOP)
       .set('X-Shopify-Webhook-Id', 'wh-test-3')
-      .set('X-Shopify-Api-Version', '2026-07')
+      .set('X-Shopify-Api-Version', '2026-04')
       .send(JSON.stringify({ shop_domain: 'attacker.myshopify.com' }));
 
     expect(res.status).toBe(401);

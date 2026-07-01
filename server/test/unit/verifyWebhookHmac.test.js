@@ -13,7 +13,7 @@ function makeReqRes(rawBodyString, { validHmac = true } = {}) {
       'x-shopify-topic': 'app/uninstalled',
       'x-shopify-shop-domain': 'shop.myshopify.com',
       'x-shopify-webhook-id': 'wh-1',
-      'x-shopify-api-version': '2026-07',
+      'x-shopify-api-version': '2026-04',
     },
     get(name) {
       return this.headers[name.toLowerCase()];

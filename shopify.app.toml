@@ -14,11 +14,10 @@ redirect_urls = [
   "https://your-app-domain.example.com/auth/callback"
 ]
 
-# Pinned to match server/src/config/shopify.js's LATEST_API_VERSION at the time this file
-# was authored. Keep these in sync — the TOML value governs webhook payload versions,
-# the JS constant governs Admin GraphQL/REST calls.
+# Pinned to match server/src/config/shopify.js's ADMIN_API_VERSION. Keep these in sync — the
+# TOML value governs webhook payload versions, the JS constant governs Admin GraphQL/REST calls.
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-04"
 
 [[webhooks.subscriptions]]
 topics = ["app/uninstalled"]

@@ -3,10 +3,15 @@ import { ApiVersion, BillingInterval, LogSeverity } from '@shopify/shopify-api';
 import { env, isProduction } from './env.js';
 import { FirestoreSessionStorage } from '../lib/sessionStorage.js';
 
-// No `LATEST_API_VERSION` export exists on this SDK version — pinned explicitly to the most
-// recent stable quarterly release available at build time. Keep in sync with
+// No `LATEST_API_VERSION` export exists on this SDK version. Pinned to April26 ("2026-04"),
+// not the newer-looking July26 the SDK also exports — the SDK ships version constants ahead of
+// Shopify's platform actually activating them, and April26 is the newest version the real
+// Partner Dashboard's app configuration currently accepts. Using an not-yet-active version here
+// causes every live Admin API call (including validateAuthenticatedSession()'s session-token
+// verification ping) to fail, which forces a fresh OAuth cycle on every single request — an
+// infinite embedded-app reload loop, not a one-time error. Keep in sync with
 // `[webhooks].api_version` in shopify.app.toml.
-export const ADMIN_API_VERSION = ApiVersion.July26;
+export const ADMIN_API_VERSION = ApiVersion.April26;
 
 // One-time credit packs (spec Section 12) plus the recurring Unlimited tier, expressed as
 // shopify-api's billing config so `shopify.billing.request/check/cancel` handle the
