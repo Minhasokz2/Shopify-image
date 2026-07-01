@@ -31,9 +31,18 @@ function useRecentJobs() {
   });
 }
 
+function useGoogleAccount() {
+  return useQuery({
+    queryKey: ['auth', 'google-status'],
+    queryFn: () => apiClient.get('/api/auth/google/status'),
+    staleTime: Infinity, // set once at sign-in; no reason to refetch mid-session
+  });
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useRecentJobs();
+  const { data: googleAccount } = useGoogleAccount();
   const jobs = data?.jobs ?? [];
 
   return (
@@ -60,6 +69,11 @@ export default function Dashboard() {
                 </Text>
                 <CreditBalanceBadge />
               </InlineStack>
+              {googleAccount?.googleEmail ? (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Signed in as {googleAccount.googleEmail}
+                </Text>
+              ) : null}
               <InlineStack gap="200">
                 <Button onClick={() => navigate('/billing')}>Manage billing</Button>
               </InlineStack>
