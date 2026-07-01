@@ -33,7 +33,16 @@ export const shopify = shopifyApp({
     apiVersion: ADMIN_API_VERSION,
     apiKey: env.SHOPIFY_API_KEY,
     apiSecretKey: env.SHOPIFY_API_SECRET,
-    scopes: env.SHOPIFY_SCOPES,
+    // Deliberately NOT passing `scopes` here. This app was created in Shopify's new Dev
+    // Dashboard, which uses Shopify-managed installation: scopes are declared in the app
+    // version's config (and shopify.app.toml), granted by Shopify at install time, and the
+    // OAuth token response comes back with NO `scope` field. If `scopes` is set here, every
+    // validateAuthenticatedSession() call compares the configured scopes against the stored
+    // session's (empty) scope, concludes the scopes changed, declares the session invalid, and
+    // forces a fresh OAuth round trip — an infinite embedded-app redirect loop. Omitting it
+    // makes the SDK skip that comparison, which is Shopify's documented setup for
+    // managed-installation apps. SHOPIFY_SCOPES in .env remains the source of truth mirrored
+    // into shopify.app.toml / the Dev Dashboard version config.
     hostName: appUrl.host,
     hostScheme: appUrl.protocol.replace(':', ''),
     isEmbeddedApp: true,
