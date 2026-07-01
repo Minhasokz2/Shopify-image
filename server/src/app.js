@@ -7,6 +7,7 @@ import { shopify } from './config/shopify.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.js';
+import googleAuthRouter from './routes/googleAuth.js';
 import webhooksRouter from './routes/webhooks.js';
 import apiRouter from './routes/api/index.js';
 import adminRouter from './routes/admin/index.js';
@@ -38,6 +39,7 @@ export function createApp() {
   }
 
   app.use(authRouter);
+  app.use(googleAuthRouter);
   app.use('/api', apiRouter);
 
   // Serve the built embedded-app frontend. Any route shopify-app-express hasn't already

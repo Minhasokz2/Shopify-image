@@ -45,47 +45,73 @@ export const shopsRepo = {
   },
 
   // Idempotent — safe to call on every OAuth callback, not just first install. `isNew` tells
-  // the caller whether this was the install that just happened, e.g. so a referral is only
-  // ever recorded once, not on every re-auth. `shopEmail` is the shop owner's Shopify-verified
-  // email (best-effort — auth.js proceeds without it if the GraphQL lookup fails); when present,
-  // the free trial is granted at most once per normalized email, not once per shop domain.
-  async ensureShopExists(shopDomain, { referredBy = null, shopEmail = null } = {}) {
-    const shopRef = repo.collection().doc(shopDomain);
-    const preCheck = await shopRef.get();
-    if (preCheck.exists) {
-      return { id: preCheck.id, ...preCheck.data(), isNew: false };
+  // the caller whether this was the install that just happened, e.g. so a referral is only ever
+  // recorded once, not on every re-auth. Starts at 0 credits and unverified — the app is fully
+  // gated behind Google Sign-In (see routes/googleAuth.js) before any credits are granted or any
+  // page loads, so there's nothing to hand out yet at plain Shopify-install time.
+  async ensureShopExists(shopDomain, { referredBy = null } = {}) {
+    const ref = repo.collection().doc(shopDomain);
+    const doc = await ref.get();
+    if (doc.exists) {
+      return { id: doc.id, ...doc.data(), isNew: false };
     }
+    const data = {
+      installedAt: FieldValue.serverTimestamp(),
+      creditBalance: 0,
+      plan: 'free',
+      brandStyleProfile: null,
+      referralCode: generateReferralCode(),
+      referredBy,
+      nurtureEmailsSent: [],
+      googleVerifiedAt: null,
+      googleEmail: null,
+      googleId: null,
+      trialCreditsGranted: false,
+    };
+    await repo.create(shopDomain, data);
+    return { id: shopDomain, ...data, isNew: true };
+  },
 
-    const normalizedEmail = shopEmail ? normalizeTrialEmail(shopEmail) : null;
-    const trialEmailRef = normalizedEmail ? firestore.collection(TRIAL_EMAILS_COLLECTION).doc(normalizedEmail) : null;
+  // Called once, from the Google OAuth callback, the first time a shop's Google identity is
+  // verified. Marks the shop as unlocked (googleVerifiedAt) regardless of trial eligibility —
+  // gating the app on "has a real Google account been verified", not on "did this get free
+  // credits" — and separately grants the one-time free trial only if this exact (normalized)
+  // Google email hasn't already claimed it under a different shop. A repeat email still
+  // unlocks the app; it just starts at 0 credits and goes straight to paid plans.
+  async markGoogleVerified(shopDomain, { googleEmail, googleId }) {
+    const shopRef = repo.collection().doc(shopDomain);
+    const normalizedEmail = normalizeTrialEmail(googleEmail);
+    const trialEmailRef = firestore.collection(TRIAL_EMAILS_COLLECTION).doc(normalizedEmail);
 
     return firestore.runTransaction(async (tx) => {
-      const doc = await tx.get(shopRef);
-      if (doc.exists) {
-        return { id: doc.id, ...doc.data(), isNew: false };
+      const shopDoc = await tx.get(shopRef);
+      if (!shopDoc.exists) {
+        throw new Error(`Cannot mark Google-verified: shop ${shopDomain} has no record`);
+      }
+      const shop = shopDoc.data();
+
+      // Re-verifying (e.g. a second staff member signs in) must never re-grant the trial.
+      if (shop.googleVerifiedAt) {
+        return { id: shopDomain, ...shop, isNew: false };
       }
 
-      const trialEmailDoc = trialEmailRef ? await tx.get(trialEmailRef) : null;
-      const trialCreditsGranted = !trialEmailDoc?.exists;
+      const trialEmailDoc = await tx.get(trialEmailRef);
+      const trialCreditsGranted = !trialEmailDoc.exists;
 
-      const data = {
-        installedAt: FieldValue.serverTimestamp(),
-        creditBalance: trialCreditsGranted ? FREE_TRIAL_CREDITS : 0,
-        plan: 'free',
-        brandStyleProfile: null,
-        referralCode: generateReferralCode(),
-        referredBy,
-        nurtureEmailsSent: [],
-        shopEmail,
+      const patch = {
+        googleVerifiedAt: FieldValue.serverTimestamp(),
+        googleEmail,
+        googleId,
         trialCreditsGranted,
+        creditBalance: trialCreditsGranted ? shop.creditBalance + FREE_TRIAL_CREDITS : shop.creditBalance,
       };
-      tx.set(shopRef, data);
+      tx.update(shopRef, patch);
 
-      if (trialEmailRef && trialCreditsGranted) {
+      if (trialCreditsGranted) {
         tx.set(trialEmailRef, { shopDomain, claimedAt: FieldValue.serverTimestamp() });
       }
 
-      return { id: shopDomain, ...data, isNew: true };
+      return { id: shopDomain, ...shop, ...patch };
     });
   },
 

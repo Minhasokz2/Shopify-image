@@ -26,6 +26,12 @@ const schema = z.object({
 
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1),
 
+  // Mandatory "Sign in with Google" gate — every shop must verify a real Google account before
+  // using the app at all (see routes/googleAuth.js). From Google Cloud Console > APIs & Services
+  // > Credentials > OAuth client ID (type: Web application).
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
   CLOUDINARY_API_KEY: z.string().min(1),
   CLOUDINARY_API_SECRET: z.string().min(1),

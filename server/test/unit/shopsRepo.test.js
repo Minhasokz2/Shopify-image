@@ -26,34 +26,67 @@ describe('normalizeTrialEmail', () => {
   });
 });
 
-describe('shopsRepo.ensureShopExists: trial-abuse guard', () => {
-  it('grants the free trial to a brand-new shop with no prior email claim', async () => {
-    const shop = await shopsRepo.ensureShopExists('shop-a.myshopify.com', { shopEmail: 'owner@example.com' });
+describe('shopsRepo.ensureShopExists', () => {
+  it('creates a brand-new shop with 0 credits and no Google verification yet', async () => {
+    const shop = await shopsRepo.ensureShopExists('shop-a.myshopify.com', {});
     expect(shop.isNew).toBe(true);
-    expect(shop.trialCreditsGranted).toBe(true);
-    expect(shop.creditBalance).toBe(10);
-  });
-
-  it('grants zero trial credits to a second shop reusing the same (normalized) email', async () => {
-    await shopsRepo.ensureShopExists('shop-b1.myshopify.com', { shopEmail: 'farmer+first@gmail.com' });
-    const second = await shopsRepo.ensureShopExists('shop-b2.myshopify.com', { shopEmail: 'farmer+second@gmail.com' });
-
-    expect(second.isNew).toBe(true);
-    expect(second.trialCreditsGranted).toBe(false);
-    expect(second.creditBalance).toBe(0);
-  });
-
-  it('grants the trial normally when no email is available at all', async () => {
-    const shop = await shopsRepo.ensureShopExists('shop-c.myshopify.com', {});
-    expect(shop.trialCreditsGranted).toBe(true);
-    expect(shop.creditBalance).toBe(10);
+    expect(shop.creditBalance).toBe(0);
+    expect(shop.googleVerifiedAt).toBeNull();
+    expect(shop.trialCreditsGranted).toBe(false);
   });
 
   it('is idempotent — a second call for the same shop returns the existing doc unchanged', async () => {
-    await shopsRepo.ensureShopExists('shop-d.myshopify.com', { shopEmail: 'once@example.com' });
-    const again = await shopsRepo.ensureShopExists('shop-d.myshopify.com', { shopEmail: 'once@example.com' });
-
+    await shopsRepo.ensureShopExists('shop-b.myshopify.com', {});
+    const again = await shopsRepo.ensureShopExists('shop-b.myshopify.com', {});
     expect(again.isNew).toBe(false);
-    expect(again.creditBalance).toBe(10);
+  });
+});
+
+describe('shopsRepo.markGoogleVerified', () => {
+  it('unlocks the shop and grants the free trial on first verification', async () => {
+    await shopsRepo.ensureShopExists('shop-c.myshopify.com', {});
+    const verified = await shopsRepo.markGoogleVerified('shop-c.myshopify.com', {
+      googleEmail: 'owner@example.com',
+      googleId: 'g-1',
+    });
+
+    expect(verified.trialCreditsGranted).toBe(true);
+    expect(verified.creditBalance).toBe(10);
+
+    const stored = await shopsRepo.getByDomain('shop-c.myshopify.com');
+    expect(stored.googleVerifiedAt).toBeTruthy();
+    expect(stored.googleEmail).toBe('owner@example.com');
+  });
+
+  it('unlocks a second shop reusing the same (normalized) Google email, but grants 0 credits', async () => {
+    await shopsRepo.ensureShopExists('shop-d1.myshopify.com', {});
+    await shopsRepo.markGoogleVerified('shop-d1.myshopify.com', { googleEmail: 'farmer+first@gmail.com', googleId: 'g-2' });
+
+    await shopsRepo.ensureShopExists('shop-d2.myshopify.com', {});
+    const second = await shopsRepo.markGoogleVerified('shop-d2.myshopify.com', {
+      googleEmail: 'farmer+second@gmail.com',
+      googleId: 'g-3',
+    });
+
+    expect(second.trialCreditsGranted).toBe(false);
+    expect(second.creditBalance).toBe(0);
+    // Still unlocked despite no trial credits — gating is on verification, not on the grant.
+    expect(second.googleVerifiedAt).toBeTruthy();
+  });
+
+  it('is a no-op on re-verification — never re-grants the trial', async () => {
+    await shopsRepo.ensureShopExists('shop-e.myshopify.com', {});
+    await shopsRepo.markGoogleVerified('shop-e.myshopify.com', { googleEmail: 'staff1@example.com', googleId: 'g-4' });
+    const reVerified = await shopsRepo.markGoogleVerified('shop-e.myshopify.com', {
+      googleEmail: 'staff2@example.com',
+      googleId: 'g-5',
+    });
+
+    // Original grant/email preserved — a second staff member signing in doesn't re-grant credits
+    // or overwrite who originally verified the shop.
+    const stored = await shopsRepo.getByDomain('shop-e.myshopify.com');
+    expect(stored.creditBalance).toBe(10);
+    expect(stored.googleEmail).toBe('staff1@example.com');
+    expect(reVerified.googleEmail).toBe('staff1@example.com');
   });
 });

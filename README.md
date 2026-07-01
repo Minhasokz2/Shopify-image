@@ -25,7 +25,19 @@ npm run dev                       # runs server + web concurrently
 
 ## Environment variables
 
-See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Cloudinary credentials, `RESEND_API_KEY`, `SENTRY_DSN`, `ADMIN_API_KEY`). Each workspace also has its own scoped `.env.example`.
+See `.env.example` at the repo root for the full list (Shopify credentials, `FAL_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `WAVESPEED_API_KEY`, Firebase service account JSON, Google OAuth client credentials, Cloudinary credentials, `RESEND_API_KEY`, `SENTRY_DSN`, `ADMIN_API_KEY`). Each workspace also has its own scoped `.env.example`.
+
+## Mandatory Google Sign-In
+
+Every shop must verify a real Google account before using any part of the app — this exists to stop the same person from farming free trial credits across multiple Shopify dev stores, and it's enforced server-side (`GET/POST /api/auth/google/status|init`, `GET /auth/google/callback`), not just in the UI.
+
+To set it up:
+
+1. In [Google Cloud Console](https://console.cloud.google.com), create (or reuse) a project, then go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**, type **Web application**.
+2. Add an **Authorized redirect URI** of `{SHOPIFY_APP_URL}/auth/google/callback` (e.g. `https://your-app.onrender.com/auth/google/callback`).
+3. Copy the generated **Client ID** and **Client Secret** into `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+
+The flow itself: Google's own Sign-In UI can't run inside Shopify admin's cross-origin iframe, so the frontend opens `/auth/google/callback`'s flow in a popup (a real top-level window); the popup posts its result back via `window.postMessage` and closes itself. A shop's first successful verification grants the one-time free trial (10 credits) unless that same Google email has already claimed it under a different shop — a repeat email still unlocks the app, it just starts at 0 credits and goes straight to paid plans.
 
 ## Testing
 

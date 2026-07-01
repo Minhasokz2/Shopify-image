@@ -11,10 +11,14 @@ import creditsRouter from './credits.js';
 import subscriptionRouter from './subscription.js';
 import brandStyleRouter from './brandStyle.js';
 import referralsRouter from './referrals.js';
+import googleAuthRouter from './googleAuth.js';
 
 const router = Router();
 
-// Every /api/* route requires a valid App Bridge session token and an established shop context.
+// Every /api/* route requires a valid App Bridge session token and an established shop context —
+// including the Google-auth status/init endpoints below: the *result* of Google Sign-In gates the
+// rest of the app, but checking/starting that flow itself still requires the caller to already be
+// a legitimate, session-token-authenticated request from this specific shop's embedded app.
 router.use(verifySessionToken, requireShopContext, httpBurstLimiter);
 
 router.use(templatesRouter);
@@ -25,5 +29,6 @@ router.use(creditsRouter);
 router.use(subscriptionRouter);
 router.use(brandStyleRouter);
 router.use(referralsRouter);
+router.use(googleAuthRouter);
 
 export default router;
