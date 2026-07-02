@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
+import { Modal, FormLayout, TextField, Select, Banner, DropZone, Thumbnail, InlineStack, Button, Spinner } from '@shopify/polaris';
 import { adminClient } from '../api/adminClient.js';
 
 // Must match server/src/services/fal.js's TEMPLATE_MODEL_IDS — the server will 400 on a mismatch.
@@ -72,6 +72,8 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
   // anything went wrong.
   const [allowedSceneModelIds, setAllowedSceneModelIds] = useState(null);
   const [allowedModelsLoadError, setAllowedModelsLoadError] = useState(null);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const [thumbnailUploadError, setThumbnailUploadError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +116,23 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
       }
       return next;
     });
+  };
+
+  const handleDropThumbnail = async (_dropFiles, acceptedFiles) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+    setThumbnailUploadError(null);
+    setUploadingThumbnail(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { thumbnailUrl } = await adminClient.postFormData('/templates/thumbnail-upload', formData);
+      setForm((prev) => ({ ...prev, thumbnailUrl }));
+    } catch (err) {
+      setThumbnailUploadError(err.message || 'Failed to upload thumbnail.');
+    } finally {
+      setUploadingThumbnail(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -211,8 +230,31 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
             />
           ) : null}
 
+          {thumbnailUploadError ? (
+            <Banner tone="critical" title="Upload failed" onDismiss={() => setThumbnailUploadError(null)}>
+              <p>{thumbnailUploadError}</p>
+            </Banner>
+          ) : null}
+
+          {form.thumbnailUrl ? (
+            <InlineStack gap="300" blockAlign="center">
+              <Thumbnail source={form.thumbnailUrl} alt="Template thumbnail" size="large" />
+              <Button onClick={() => updateField('thumbnailUrl')('')}>Remove</Button>
+            </InlineStack>
+          ) : (
+            <DropZone accept="image/*" type="image" onDrop={handleDropThumbnail} disabled={uploadingThumbnail}>
+              <DropZone.FileUpload actionTitle="Upload a thumbnail image" actionHint="Or paste a URL below" />
+            </DropZone>
+          )}
+          {uploadingThumbnail ? (
+            <InlineStack align="center">
+              <Spinner accessibilityLabel="Uploading thumbnail" size="small" />
+            </InlineStack>
+          ) : null}
+
           <TextField
             label="Thumbnail URL (optional)"
+            helpText="Set automatically when you upload an image above — or paste an external URL directly instead."
             value={form.thumbnailUrl}
             onChange={updateField('thumbnailUrl')}
             autoComplete="off"

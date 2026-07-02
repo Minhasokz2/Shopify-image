@@ -12,17 +12,7 @@ export function clearStoredAdminKey() {
   sessionStorage.removeItem(STORAGE_KEY);
 }
 
-async function request(path, { method = 'GET', body } = {}) {
-  const key = getStoredAdminKey();
-  const response = await fetch(`/admin/api${path}`, {
-    method,
-    headers: {
-      'x-admin-key': key ?? '',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
+async function handleResponse(response) {
   if (response.status === 401) {
     // The stored key is wrong or has never been set — clear it so the login gate reappears
     // instead of the app quietly failing every subsequent request.
@@ -52,9 +42,36 @@ async function request(path, { method = 'GET', body } = {}) {
   return response.json();
 }
 
+async function request(path, { method = 'GET', body } = {}) {
+  const key = getStoredAdminKey();
+  const response = await fetch(`/admin/api${path}`, {
+    method,
+    headers: {
+      'x-admin-key': key ?? '',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse(response);
+}
+
+// Multipart upload (template thumbnail images) needs its own path through fetch: FormData must
+// NOT be JSON.stringify'd, and the browser sets its own multipart Content-Type (with boundary)
+// automatically — setting one manually here would break the boundary.
+async function postFormData(path, formData) {
+  const key = getStoredAdminKey();
+  const response = await fetch(`/admin/api${path}`, {
+    method: 'POST',
+    headers: { 'x-admin-key': key ?? '' },
+    body: formData,
+  });
+  return handleResponse(response);
+}
+
 export const adminClient = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body }),
   put: (path, body) => request(path, { method: 'PUT', body }),
   delete: (path) => request(path, { method: 'DELETE' }),
+  postFormData,
 };

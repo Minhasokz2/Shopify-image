@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { templatesRepo } from '../../models/templatesRepo.js';
 import { TEMPLATE_MODEL_IDS } from '../../services/fal.js';
+import { cloudinary } from '../../lib/cloudinary.js';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Scene models come from fal.js's TEMPLATE_MODEL_IDS — the original 5 shared with the
 // custom-prompt allowed-models catalog, PLUS the subset of the extended AI-feature catalog whose
@@ -47,6 +50,27 @@ function checkPreferredModel(body, ctx) {
 
 const createTemplateSchema = z.object({ id: idSchema, ...templateFields }).superRefine(checkPreferredModel);
 const updateTemplateSchema = z.object(templateFields).superRefine(checkPreferredModel);
+
+// POST /admin/api/templates/thumbnail-upload — lets the admin upload a thumbnail image file
+// directly instead of having to host one elsewhere and paste a URL. Returns a Cloudinary URL that
+// slots straight into the same `thumbnailUrl` field the manual-URL input already writes to, so
+// createTemplateSchema/updateTemplateSchema need no changes.
+router.post('/templates/thumbnail-upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded (expected multipart field "file").' });
+  }
+  if (!req.file.mimetype.startsWith('image/')) {
+    return res.status(400).json({ error: 'Only image uploads are supported.' });
+  }
+
+  const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder: 'shopify-image/template-thumbnails',
+    resource_type: 'image',
+  });
+
+  return res.status(201).json({ thumbnailUrl: result.secure_url });
+});
 
 // GET /admin/api/templates — full catalog, including fields the merchant-facing endpoint doesn't
 // need to expose differently (there's currently no difference, but this is the admin's own view).
