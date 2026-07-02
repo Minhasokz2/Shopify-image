@@ -16,8 +16,10 @@ import {
   Thumbnail,
   Box,
 } from '@shopify/polaris';
+import { ProductIcon, SearchIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 function useProducts(cursor) {
   return useQuery({
@@ -123,65 +125,77 @@ export default function ProductPicker() {
         ) : null}
 
         <Card>
-          <TextField
-            label="Search products"
-            labelHidden
-            placeholder="Search by title or category"
-            value={search}
-            onChange={setSearch}
-            autoComplete="off"
-            clearButton
-            onClearButtonClick={() => setSearch('')}
-          />
+          <BlockStack gap="300">
+            <SectionHeading icon={SearchIcon} variant="headingSm">
+              Search
+            </SectionHeading>
+            <TextField
+              label="Search products"
+              labelHidden
+              placeholder="Search by title or category"
+              value={search}
+              onChange={setSearch}
+              autoComplete="off"
+              clearButton
+              onClearButtonClick={() => setSearch('')}
+            />
+          </BlockStack>
         </Card>
 
         <Card>
-          {isLoading && products.length === 0 ? (
-            <Box padding="400">
-              <InlineStack align="center">
-                <Spinner accessibilityLabel="Loading products" size="small" />
-              </InlineStack>
-            </Box>
-          ) : filteredProducts.length === 0 ? (
-            <EmptyState heading="No products found" image="">
-              <p>Try a different search term.</p>
-            </EmptyState>
-          ) : (
-            <BlockStack gap="200">
-              {filteredProducts.map((product) => (
-                <Box
-                  key={product.id}
-                  padding="300"
-                  borderWidth="025"
-                  borderColor="border"
-                  borderRadius="200"
-                >
-                  <InlineStack gap="300" blockAlign="center">
-                    <Checkbox
-                      label={`Select ${product.title}`}
-                      labelHidden
-                      checked={selectedIds.has(product.id)}
-                      onChange={() => toggleSelected(product.id)}
-                    />
-                    <Thumbnail
-                      source={product.imageUrl || ''}
-                      alt={product.title}
-                      size="small"
-                    />
-                    <BlockStack gap="050">
-                      <Text as="span" fontWeight="medium">
-                        {product.title}
-                      </Text>
-                      <Text as="span" variant="bodySm" tone="subdued">
-                        {product.status}
-                        {product.productCategoryTag ? ` · ${product.productCategoryTag}` : ''}
-                      </Text>
-                    </BlockStack>
-                  </InlineStack>
-                </Box>
-              ))}
-            </BlockStack>
-          )}
+          <BlockStack gap="300">
+            <SectionHeading icon={ProductIcon}>Products</SectionHeading>
+            {isLoading && products.length === 0 ? (
+              <Box padding="400">
+                <InlineStack align="center">
+                  <Spinner accessibilityLabel="Loading products" size="small" />
+                </InlineStack>
+              </Box>
+            ) : filteredProducts.length === 0 ? (
+              <EmptyState heading="No products found" image="">
+                <p>Try a different search term.</p>
+              </EmptyState>
+            ) : (
+              <BlockStack gap="200">
+                {filteredProducts.map((product) => {
+                  const isSelected = selectedIds.has(product.id);
+                  return (
+                    <Box
+                      key={product.id}
+                      padding="300"
+                      borderWidth={isSelected ? '050' : '025'}
+                      borderColor={isSelected ? 'border-emphasis' : 'border'}
+                      borderRadius="200"
+                      background={isSelected ? 'bg-surface-selected' : undefined}
+                    >
+                      <InlineStack gap="300" blockAlign="center">
+                        <Checkbox
+                          label={`Select ${product.title}`}
+                          labelHidden
+                          checked={isSelected}
+                          onChange={() => toggleSelected(product.id)}
+                        />
+                        <Thumbnail
+                          source={product.imageUrl || ''}
+                          alt={product.title}
+                          size="small"
+                        />
+                        <BlockStack gap="050">
+                          <Text as="span" fontWeight="medium">
+                            {product.title}
+                          </Text>
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {product.status}
+                            {product.productCategoryTag ? ` · ${product.productCategoryTag}` : ''}
+                          </Text>
+                        </BlockStack>
+                      </InlineStack>
+                    </Box>
+                  );
+                })}
+              </BlockStack>
+            )}
+          </BlockStack>
         </Card>
 
         {data?.pageInfo?.hasNextPage ? (

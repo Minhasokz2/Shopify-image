@@ -14,8 +14,10 @@ import {
   Spinner,
   Box,
 } from '@shopify/polaris';
+import { PlayCircleIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const ASPECT_RATIO_OPTIONS = [
@@ -124,14 +126,14 @@ export default function VideoStudio() {
             </Banner>
           ) : null}
 
-          <Text as="h2" variant="headingMd">
-            Motion template
-          </Text>
+          <SectionHeading icon={PlayCircleIcon}>Motion template</SectionHeading>
 
           {isLoading ? (
-            <InlineStack align="center">
-              <Spinner accessibilityLabel="Loading motion templates" size="small" />
-            </InlineStack>
+            <Box padding="400">
+              <InlineStack align="center">
+                <Spinner accessibilityLabel="Loading motion templates" size="small" />
+              </InlineStack>
+            </Box>
           ) : (
             <InlineStack gap="300" wrap>
               {videoTemplates.map((template) => {

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Page, Card, BlockStack, InlineStack, Text, Select, TextField, Button, Banner } from '@shopify/polaris';
+import { Page, Card, BlockStack, InlineStack, Text, Select, TextField, Button, Banner, Box, Thumbnail } from '@shopify/polaris';
+import { PersonIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const GENDER_PRESENTATION_OPTIONS = [
@@ -80,21 +82,30 @@ export default function PersonaBuilder() {
     >
       <Card>
         <BlockStack gap="400">
+          <SectionHeading icon={PersonIcon}>Persona details</SectionHeading>
+
           {!product || !template ? (
             <Banner tone="warning" title="Missing selection">
               <p>Go back and pick a product and a UGC template first.</p>
             </Banner>
           ) : (
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="p" tone="subdued">
-                Template: {template.name} ({template.creditCost} credits)
-              </Text>
-              {!canAfford ? (
-                <Text as="span" variant="bodySm" tone="critical">
-                  Not enough credits — you have {balance}
-                </Text>
-              ) : null}
-            </InlineStack>
+            <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
+              <InlineStack align="space-between" blockAlign="center" gap="300">
+                <InlineStack gap="300" blockAlign="center">
+                  {product.imageUrl ? (
+                    <Thumbnail source={product.imageUrl} alt={product.title} size="small" />
+                  ) : null}
+                  <Text as="p" tone="subdued">
+                    Template: {template.name} ({template.creditCost} credits)
+                  </Text>
+                </InlineStack>
+                {!canAfford ? (
+                  <Text as="span" variant="bodySm" tone="critical">
+                    Not enough credits — you have {balance}
+                  </Text>
+                ) : null}
+              </InlineStack>
+            </Box>
           )}
 
           {submitError ? (
@@ -103,29 +114,33 @@ export default function PersonaBuilder() {
             </Banner>
           ) : null}
 
-          <Select
-            label="Presentation"
-            options={GENDER_PRESENTATION_OPTIONS}
-            value={genderPresentation}
-            onChange={setGenderPresentation}
-          />
+          <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
+            <BlockStack gap="300">
+              <Select
+                label="Presentation"
+                options={GENDER_PRESENTATION_OPTIONS}
+                value={genderPresentation}
+                onChange={setGenderPresentation}
+              />
 
-          <Select
-            label="Setting"
-            options={SETTING_OPTIONS}
-            value={settingOption}
-            onChange={setSettingOption}
-          />
+              <Select
+                label="Setting"
+                options={SETTING_OPTIONS}
+                value={settingOption}
+                onChange={setSettingOption}
+              />
 
-          {settingOption === 'custom' ? (
-            <TextField
-              label="Custom setting"
-              value={customSetting}
-              onChange={setCustomSetting}
-              autoComplete="off"
-              placeholder="e.g. cozy coffee shop"
-            />
-          ) : null}
+              {settingOption === 'custom' ? (
+                <TextField
+                  label="Custom setting"
+                  value={customSetting}
+                  onChange={setCustomSetting}
+                  autoComplete="off"
+                  placeholder="e.g. cozy coffee shop"
+                />
+              ) : null}
+            </BlockStack>
+          </Box>
 
           <Button
             variant="primary"

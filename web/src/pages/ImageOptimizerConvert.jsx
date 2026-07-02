@@ -19,10 +19,13 @@ import {
   DropZone,
   Spinner,
   EmptyState,
+  ProgressBar,
 } from '@shopify/polaris';
+import { ImagesIcon, SettingsIcon, ClockIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { useImageOptimizerImages, useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { inferFormatFromUrl } from '../utils/imageFormat.js';
 
 const TABS = [
@@ -152,17 +155,28 @@ export default function ImageOptimizerConvert() {
       title="Convert Images"
       subtitle="Convert product images to WebP or AVIF, one at a time or in bulk"
       secondaryActions={[
-        { content: 'Conversion History', onAction: () => navigate('/image-optimizer/history') },
-        { content: 'Settings & Plans', onAction: () => navigate('/image-optimizer/settings') },
+        { content: 'Conversion History', icon: ClockIcon, onAction: () => navigate('/image-optimizer/history') },
+        { content: 'Settings & Plans', icon: SettingsIcon, onAction: () => navigate('/image-optimizer/settings') },
       ]}
     >
       <Layout>
         <Layout.Section>
           {usage ? (
             <Banner tone={usage.unlimited ? 'success' : overQuota ? 'warning' : 'info'}>
-              {usage.unlimited
-                ? 'Unlimited conversions — Compress Image add-on active.'
-                : `${usage.remaining} of ${usage.dailyLimit} free conversions left today.`}
+              <BlockStack gap="200">
+                <p>
+                  {usage.unlimited
+                    ? 'Unlimited conversions — Compress Image add-on active.'
+                    : `${usage.remaining} of ${usage.dailyLimit} free conversions left today.`}
+                </p>
+                {!usage.unlimited ? (
+                  <ProgressBar
+                    progress={(usage.remaining / usage.dailyLimit) * 100}
+                    size="small"
+                    tone={usage.remaining === 0 ? 'critical' : 'primary'}
+                  />
+                ) : null}
+              </BlockStack>
             </Banner>
           ) : null}
           {imagesError ? (
@@ -192,7 +206,10 @@ export default function ImageOptimizerConvert() {
                     <Spinner accessibilityLabel="Loading store images" size="small" />
                   </InlineStack>
                 ) : products.length === 0 ? (
-                  <EmptyState heading="No product images found" image="">
+                  <EmptyState
+                    heading="No product images found"
+                    image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+                  >
                     <p>Add images to your products, then come back here to convert them.</p>
                   </EmptyState>
                 ) : (
@@ -234,9 +251,9 @@ export default function ImageOptimizerConvert() {
           <Layout.Section>
             <Card>
               <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
+                <SectionHeading icon={ImagesIcon}>
                   {selectedList.length} image{selectedList.length === 1 ? '' : 's'} selected
-                </Text>
+                </SectionHeading>
                 <InlineStack gap="200" wrap>
                   {selectedList.map((img) => (
                     <Box key={img.key} padding="100" borderWidth="025" borderColor="border" borderRadius="200">
@@ -267,9 +284,7 @@ export default function ImageOptimizerConvert() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Options
-              </Text>
+              <SectionHeading icon={SettingsIcon}>Options</SectionHeading>
               <ChoiceList
                 title="Output format"
                 allowMultiple

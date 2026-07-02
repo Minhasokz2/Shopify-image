@@ -6,6 +6,7 @@ import {
   Banner,
   Button,
   Card,
+  EmptyState,
   IndexTable,
   InlineStack,
   Page,
@@ -13,6 +14,7 @@ import {
   Text,
   Thumbnail,
 } from '@shopify/polaris';
+import { ExportIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { useImageOptimizerHistory } from '../hooks/useImageOptimizer.js';
 
@@ -82,7 +84,12 @@ export default function ImageOptimizerHistory() {
     <Page
       title="Conversion History"
       backAction={{ content: 'Convert Images', onAction: () => navigate('/image-optimizer') }}
-      primaryAction={{ content: 'Export CSV', onAction: () => downloadCsv(jobs), disabled: jobs.length === 0 }}
+      primaryAction={{
+        content: 'Export CSV',
+        icon: ExportIcon,
+        onAction: () => downloadCsv(jobs),
+        disabled: jobs.length === 0,
+      }}
     >
       {error ? (
         <Banner tone="critical" title="Couldn't load history">
@@ -100,6 +107,14 @@ export default function ImageOptimizerHistory() {
           <InlineStack align="center">
             <Spinner accessibilityLabel="Loading history" size="small" />
           </InlineStack>
+        ) : jobs.length === 0 ? (
+          <EmptyState
+            heading="No conversions yet"
+            action={{ content: 'Convert images', onAction: () => navigate('/image-optimizer') }}
+            image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+          >
+            <p>Convert your first product image to see it show up here.</p>
+          </EmptyState>
         ) : (
           <IndexTable
             resourceName={{ singular: 'conversion', plural: 'conversions' }}
