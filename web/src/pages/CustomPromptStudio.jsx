@@ -27,10 +27,16 @@ import { StickyActionBar } from '../components/StickyActionBar.jsx';
 const MAX_IMAGES = 6;
 const NUM_IMAGES_OPTIONS = [1, 2, 3, 4];
 
+// Allowed Models is admin-managed from a separate app — don't trust the global 10s staleTime
+// (main.jsx) for whether a model is priced/active right now (see TemplateGallery.jsx for the
+// same reasoning applied to the template catalog).
 function useAllowedModels() {
   return useQuery({
     queryKey: ['models', 'scene'],
     queryFn: () => apiClient.get('/api/models?category=scene'),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
 }
 

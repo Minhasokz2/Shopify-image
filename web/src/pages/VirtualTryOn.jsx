@@ -24,11 +24,17 @@ import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
 
+// Allowed Models is admin-managed from a separate app — don't trust the global 10s staleTime
+// (main.jsx) for whether this feature is priced/active right now (see TemplateGallery.jsx for
+// the same reasoning).
 function useTryOnModel() {
   return useQuery({
     queryKey: ['models', 'scene'],
     queryFn: () => apiClient.get('/api/models?category=scene'),
     select: (data) => data.models?.find((m) => m.id === 'fashn-tryon') ?? null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
   });
 }
 

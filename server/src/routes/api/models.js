@@ -9,6 +9,9 @@ const router = Router();
 router.get('/models', async (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category : 'scene';
   const models = await allowedModelsRepo.findActiveByCategory(category);
+  // Admin-managed and can change at any moment from a separate app — never let a browser/proxy
+  // cache serve a stale catalog to the merchant.
+  res.set('Cache-Control', 'no-store');
   res.json({ models });
 });
 

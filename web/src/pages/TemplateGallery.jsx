@@ -32,10 +32,19 @@ import { useCreditBalance } from '../hooks/useCreditBalance.js';
 // entry point for a model the platform admin hasn't actually enabled/priced.
 const BASE_TABS = [{ id: 'scene', content: 'Scenes' }];
 
+// The template/model catalogs are admin-managed and can change at any time from a completely
+// separate app (the admin CMS) — the global 10s staleTime (main.jsx) is fine for data a merchant
+// changes themselves, but it's the wrong default here: a template added moments ago shouldn't
+// require a full page reload (or a 10s wait) to show up. staleTime: 0 means every mount/focus
+// re-checks the server instead of trusting a cached copy, and the interval keeps it current even
+// if the merchant just leaves this tab open.
+const ALWAYS_FRESH = { staleTime: 0, refetchOnWindowFocus: true, refetchInterval: 30_000 };
+
 function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
     queryFn: () => apiClient.get('/api/templates'),
+    ...ALWAYS_FRESH,
   });
 }
 
@@ -44,6 +53,7 @@ function useTryOnModel() {
     queryKey: ['models', 'scene'],
     queryFn: () => apiClient.get('/api/models?category=scene'),
     select: (data) => data.models?.find((m) => m.id === 'fashn-tryon') ?? null,
+    ...ALWAYS_FRESH,
   });
 }
 
