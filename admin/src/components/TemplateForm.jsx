@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
+import { adminClient } from '../api/adminClient.js';
 
-// Must match server/src/services/fal.js's TEMPLATE_MODEL_IDS exactly — the server will 400 on a
-// mismatch, this is just so the form only offers valid choices instead of letting the admin
-// discover the constraint from an error message.
+// Must match server/src/services/fal.js's TEMPLATE_MODEL_IDS — the server will 400 on a mismatch.
+// This is the WIDER, code-level list of every model whose request shape fits a template (always
+// exactly one image, always a fixed batch of 4); the component below further narrows the 'scene'
+// options at render time to whichever of these are actually active Allowed Models, since that's
+// the real-world set an admin has priced and vetted for merchant use — see modelIdsForCategory.
 //
 // Scene = the original 5 (multi-image edit models) + 10 of the 11 extended AI-feature models
-// whose request shape fits a template (always exactly one image, always a fixed batch of 4). The
-// 11th extended model — Virtual Try-On — is Allowed-Models-only, NOT offered here: it needs 2
-// distinct image roles (person + garment), and a template only has one image slot. It's driven
-// instead by its own dedicated page (web/src/pages/VirtualTryOn.jsx). 'imagen-4' is deliberately
-// excluded too — pure text-to-image, the same failure mode that got the brand-asset LoRA models
-// removed from the catalog entirely (GPT Image 2 and Ideogram V4 below use their genuinely
-// image-aware edit endpoints, not the text-only originals).
+// whose request shape fits a template. The 11th extended model — Virtual Try-On — is
+// Allowed-Models-only, NOT offered here: it needs 2 distinct image roles (person + garment), and
+// a template only has one image slot. It's driven instead by its own dedicated page
+// (web/src/pages/VirtualTryOn.jsx). 'imagen-4' is deliberately excluded too — pure text-to-image,
+// the same failure mode that got the brand-asset LoRA models removed from the catalog entirely
+// (GPT Image 2 and Ideogram V4 below use their genuinely image-aware edit endpoints, not the
+// text-only originals).
 const MODELS_BY_CATEGORY = {
   scene: [
     'flux-kontext-max',
@@ -60,15 +63,49 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
       : EMPTY_TEMPLATE,
   );
 
-  const modelOptions = MODELS_BY_CATEGORY[form.category].map((value) => ({ label: value, value }));
+  // Allowed Models (admin-curated: active + priced) is the narrower, real-world source of truth
+  // for what merchants can actually use — MODELS_BY_CATEGORY.scene above is just the wider
+  // code-level "shape fits a template" boundary. Null while loading; falls back to the full
+  // code-level list on load failure or before the fetch resolves, rather than blocking the form.
+  const [allowedSceneModelIds, setAllowedSceneModelIds] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    adminClient
+      .get('/models')
+      .then(({ models }) => {
+        if (cancelled) return;
+        setAllowedSceneModelIds(new Set(models.filter((m) => m.category === 'scene' && m.active).map((m) => m.falModel)));
+      })
+      .catch(() => {
+        if (!cancelled) setAllowedSceneModelIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Never drops the currently-selected model from the list, even if it's since been deactivated
+  // in Allowed Models — an admin editing an existing template shouldn't have its model silently
+  // vanish out from under them; they can still see and knowingly change it.
+  const modelIdsForCategory = (category, currentPreferredModel) => {
+    const codeLevelIds = MODELS_BY_CATEGORY[category];
+    if (category !== 'scene' || allowedSceneModelIds === null) return codeLevelIds;
+    return codeLevelIds.filter((id) => allowedSceneModelIds.has(id) || id === currentPreferredModel);
+  };
+
+  const modelOptions = modelIdsForCategory(form.category, form.preferredModel).map((value) => ({ label: value, value }));
 
   const updateField = (field) => (value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       // Changing category can invalidate the previously-selected model — snap to the first
       // valid option for the new category rather than submitting a stale, now-illegal pairing.
-      if (field === 'category' && !MODELS_BY_CATEGORY[value].includes(prev.preferredModel)) {
-        next.preferredModel = MODELS_BY_CATEGORY[value][0];
+      if (field === 'category') {
+        const validIds = modelIdsForCategory(value, prev.preferredModel);
+        if (!validIds.includes(prev.preferredModel)) {
+          next.preferredModel = validIds[0];
+        }
       }
       return next;
     });
@@ -139,7 +176,7 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
             onChange={updateField('preferredModel')}
             helpText={
               form.category === 'scene'
-                ? 'Ignored for skincare/cosmetics/makeup/beauty products — those always route to FLUX Kontext Max for color accuracy, regardless of this setting.'
+                ? 'Limited to models active in Allowed Models. Ignored for skincare/cosmetics/makeup/beauty products — those always route to FLUX Kontext Max for color accuracy, regardless of this setting.'
                 : undefined
             }
           />

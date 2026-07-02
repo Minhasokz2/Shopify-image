@@ -27,11 +27,10 @@ import { useCreditBalance } from '../hooks/useCreditBalance.js';
 // Virtual Try-On isn't blocked on that — it runs on fal.ai (already configured) — but it isn't a
 // templatesRepo-backed template either: it needs a guided 2-image flow (person upload + garment
 // pick) a fixed prompt+model template row can't express. It gets its own tab that skips the
-// template grid entirely and hands off straight to VirtualTryOn.jsx.
-const TABS = [
-  { id: 'scene', content: 'Scenes' },
-  { id: 'tryon', content: 'Virtual Try-On' },
-];
+// template grid entirely and hands off straight to VirtualTryOn.jsx. That tab is only added below
+// once fashn-tryon is confirmed to be an active Allowed Model — merchants should never see an
+// entry point for a model the platform admin hasn't actually enabled/priced.
+const BASE_TABS = [{ id: 'scene', content: 'Scenes' }];
 
 function useTemplates() {
   return useQuery({
@@ -64,7 +63,8 @@ export default function TemplateGallery() {
   const balance = creditData?.creditBalance ?? null;
   const tryOnCanAfford = isUnlimited || balance === null || !tryOnModel || balance >= tryOnModel.creditCost;
 
-  const activeCategory = TABS[selectedTabIndex].id;
+  const tabs = tryOnModel ? [...BASE_TABS, { id: 'tryon', content: 'Virtual Try-On' }] : BASE_TABS;
+  const activeCategory = tabs[selectedTabIndex]?.id ?? 'scene';
 
   const templates = useMemo(
     () => (data?.templates ?? []).filter((t) => t.category === activeCategory),
@@ -159,7 +159,7 @@ export default function TemplateGallery() {
         ) : null}
 
         <Card padding="0">
-          {TABS.length > 1 ? <Tabs tabs={TABS} selected={selectedTabIndex} onSelect={setSelectedTabIndex} /> : null}
+          {tabs.length > 1 ? <Tabs tabs={tabs} selected={selectedTabIndex} onSelect={setSelectedTabIndex} /> : null}
           <Box padding="400">
             {activeCategory === 'tryon' ? (
               <BlockStack gap="300">
