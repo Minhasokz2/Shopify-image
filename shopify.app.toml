@@ -25,16 +25,21 @@ api_version = "2026-04"
 topics = ["app/uninstalled"]
 uri = "/webhooks/app/uninstalled"
 
+# The 3 mandatory GDPR webhooks use `compliance_topics`, not `topics` — a distinct TOML field
+# from Shopify's regular app-specific webhook subscriptions. Shopify sends these to every public
+# app regardless of granted scopes, and the App Store review's "Provides mandatory compliance
+# webhooks" automated check specifically looks for entries under this field, not `topics` with a
+# matching name (confirmed via shopify.dev's own documented shopify.app.toml examples).
 [[webhooks.subscriptions]]
-topics = ["shop/redact"]
+compliance_topics = ["shop/redact"]
 uri = "/webhooks/shop/redact"
 
 [[webhooks.subscriptions]]
-topics = ["customers/redact"]
+compliance_topics = ["customers/redact"]
 uri = "/webhooks/customers/redact"
 
 [[webhooks.subscriptions]]
-topics = ["customers/data_request"]
+compliance_topics = ["customers/data_request"]
 uri = "/webhooks/customers/data_request"
 
 [[webhooks.subscriptions]]
