@@ -70,4 +70,19 @@ describe('verifyWebhookHmac', () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);
   });
+
+  // express.raw({ type: 'application/json' }) leaves req.body as undefined for any request whose
+  // Content-Type isn't exactly application/json (a GET/HEAD probe with no body, or a malformed
+  // POST) — Shopify's automated app review sends exactly these kinds of edge-case requests, and
+  // this used to crash with a 500 instead of a clean 401.
+  it('rejects (401, not a crash) when the request has no parsed body at all', async () => {
+    const { req, res } = makeReqRes('{}');
+    req.body = undefined;
+    const next = vi.fn();
+
+    await verifyWebhookHmac(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
 });
