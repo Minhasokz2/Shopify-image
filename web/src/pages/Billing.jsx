@@ -5,9 +5,27 @@ import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { apiClient } from '../api/client.js';
 
 const PACKS = [
-  { id: 'starter', name: 'Starter', priceLabel: '$9', credits: 50 },
-  { id: 'growth', name: 'Growth', priceLabel: '$29', credits: 200 },
-  { id: 'pro', name: 'Pro', priceLabel: '$69', credits: 600 },
+  {
+    id: 'starter',
+    name: 'Starter',
+    priceLabel: '$9',
+    credits: 50,
+    benefits: ['50 fresh credits every month', 'Unused credits roll over — they never expire', 'Cancel anytime'],
+  },
+  {
+    id: 'growth',
+    name: 'Growth',
+    priceLabel: '$29',
+    credits: 200,
+    benefits: ['200 fresh credits every month', '~19% cheaper per credit than Starter', 'Unused credits roll over — they never expire', 'Cancel anytime'],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    priceLabel: '$69',
+    credits: 600,
+    benefits: ['600 fresh credits every month', 'Our best per-credit rate — cheaper than buying custom credits', 'Unused credits roll over — they never expire', 'Cancel anytime'],
+  },
 ];
 
 // Shopify's billing confirmation page must break out of the embedded admin iframe, so this
@@ -59,6 +77,7 @@ export default function Billing() {
   const { data: credits, isLoading: creditsLoading } = useCreditBalance();
   const [pendingPackId, setPendingPackId] = useState(null);
   const [error, setError] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const [customAmount, setCustomAmount] = useState('');
   const { estimate, error: estimateError, loading: estimateLoading } = useCustomCreditEstimate(customAmount);
@@ -73,6 +92,19 @@ export default function Billing() {
     } catch (err) {
       setError(err.message);
       setPendingPackId(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    setError(null);
+    setCancelling(true);
+    try {
+      await apiClient.post('/api/billing/cancel', {});
+      queryClient.invalidateQueries({ queryKey: ['credits'] });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -101,7 +133,7 @@ export default function Billing() {
       <Layout>
         <Layout.Section>
           <Card>
-            <InlineStack align="space-between" blockAlign="center">
+            <InlineStack align="space-between" blockAlign="center" wrap>
               <Text as="h2" variant="headingMd">
                 Current plan
               </Text>
@@ -110,9 +142,16 @@ export default function Billing() {
                   Loading…
                 </Text>
               ) : (
-                <Text as="span">
-                  {credits?.plan ?? 'free'} plan · {credits?.creditBalance ?? 0} credits remaining
-                </Text>
+                <InlineStack gap="300" blockAlign="center">
+                  <Text as="span">
+                    {credits?.plan ?? 'free'} plan · {credits?.creditBalance ?? 0} credits remaining
+                  </Text>
+                  {credits?.canCancelPlan ? (
+                    <Button tone="critical" variant="tertiary" loading={cancelling} onClick={handleCancel}>
+                      Cancel subscription
+                    </Button>
+                  ) : null}
+                </InlineStack>
               )}
             </InlineStack>
           </Card>
@@ -127,32 +166,55 @@ export default function Billing() {
         )}
 
         <Layout.Section>
-          <InlineStack gap="400" wrap>
-            {PACKS.map((pack) => (
-              <div key={pack.id} style={{ flex: '1 1 200px', minWidth: 200 }}>
-                <Card>
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">
-                      {pack.name}
-                    </Text>
-                    <Text as="p" variant="heading2xl">
-                      {pack.priceLabel}
-                    </Text>
-                    <Text as="p" tone="subdued">
-                      {pack.credits} credits
-                    </Text>
-                    <Button
-                      variant="primary"
-                      onClick={() => handlePurchase(pack.id)}
-                      loading={pendingPackId === pack.id}
-                    >
-                      Buy
-                    </Button>
-                  </BlockStack>
-                </Card>
-              </div>
-            ))}
-          </InlineStack>
+          <BlockStack gap="200">
+            <Text as="p" tone="subdued">
+              Monthly recurring plans — billed every 30 days, cancel anytime. Credits are topped up
+              automatically on each renewal and never expire, so anything you don't use carries into
+              next month.
+            </Text>
+            <InlineStack gap="400" wrap>
+              {PACKS.map((pack) => {
+                const isCurrentPlan = credits?.plan === pack.id;
+                return (
+                  <div key={pack.id} style={{ flex: '1 1 240px', minWidth: 240 }}>
+                    <Card>
+                      <BlockStack gap="200">
+                        <Text as="h3" variant="headingSm">
+                          {pack.name}
+                        </Text>
+                        <InlineStack gap="100" blockAlign="baseline">
+                          <Text as="p" variant="heading2xl">
+                            {pack.priceLabel}
+                          </Text>
+                          <Text as="span" tone="subdued">
+                            /month
+                          </Text>
+                        </InlineStack>
+                        <Text as="p" tone="subdued">
+                          {pack.credits} credits/month
+                        </Text>
+                        <BlockStack gap="100">
+                          {pack.benefits.map((benefit) => (
+                            <Text as="p" variant="bodySm" key={benefit}>
+                              {`✓ ${benefit}`}
+                            </Text>
+                          ))}
+                        </BlockStack>
+                        <Button
+                          variant="primary"
+                          disabled={isCurrentPlan}
+                          onClick={() => handlePurchase(pack.id)}
+                          loading={pendingPackId === pack.id}
+                        >
+                          {isCurrentPlan ? 'Current plan' : 'Subscribe'}
+                        </Button>
+                      </BlockStack>
+                    </Card>
+                  </div>
+                );
+              })}
+            </InlineStack>
+          </BlockStack>
         </Layout.Section>
 
         <Layout.Section>

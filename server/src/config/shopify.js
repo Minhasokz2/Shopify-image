@@ -13,14 +13,15 @@ import { FirestoreSessionStorage } from '../lib/sessionStorage.js';
 // `[webhooks].api_version` in shopify.app.toml.
 export const ADMIN_API_VERSION = ApiVersion.April26;
 
-// One-time credit packs (spec Section 12) plus the recurring Unlimited tier, expressed as
-// shopify-api's billing config so `shopify.billing.request/check/cancel` handle the
-// appPurchaseOneTimeCreate / appSubscriptionCreate GraphQL calls for us instead of hand-rolled
-// mutations.
+// Credit packs (spec Section 12) — monthly recurring subscriptions, same shape as Unlimited
+// below, so `shopify.billing.request()` calls appSubscriptionCreate (not appPurchaseOneTimeCreate)
+// for these. The credit grant re-fires every 30 days on renewal (see reconcileBillingState in
+// services/billing.js) rather than just once at signup — merchants get a fresh allotment every
+// month for as long as they stay subscribed, and never have to remember to repurchase.
 export const BILLING_PLANS = {
-  starter: { amount: 9, currencyCode: 'USD', interval: BillingInterval.OneTime },
-  growth: { amount: 29, currencyCode: 'USD', interval: BillingInterval.OneTime },
-  pro: { amount: 69, currencyCode: 'USD', interval: BillingInterval.OneTime },
+  starter: { lineItems: [{ amount: 9, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
+  growth: { lineItems: [{ amount: 29, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
+  pro: { lineItems: [{ amount: 69, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
   unlimited: {
     lineItems: [{ amount: 29, currencyCode: 'USD', interval: BillingInterval.Every30Days }],
   },

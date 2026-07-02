@@ -142,12 +142,20 @@ export async function settleJobFailure({ jobId, errorMessage }) {
   });
 }
 
+// Shopify GraphQL ids are GIDs like "gid://shopify/AppSubscription/12345" — the "//" makes them
+// an invalid Firestore document id outright (Firestore rejects any path segment containing "/",
+// full stop, not just multi-segment paths), so every id sourced from Shopify's API must be
+// sanitized before it's used to build a doc id, never interpolated raw.
+function sanitizeForDocId(value) {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 // Credits a shop's balance for a purchased pack or subscription renewal. Idempotent on
 // `shopifyChargeId` — a webhook or confirmation redirect that fires twice for the same charge
 // must never credit the shop twice.
 export async function addCredits({ shopDomain, creditsAdded, amountUSD, type, packId = null, shopifyChargeId = null }) {
   const shopRef = shopsRepo.getRef(shopDomain);
-  const ledgerId = shopifyChargeId ? `charge_${shopifyChargeId}` : `manual_${crypto.randomUUID()}`;
+  const ledgerId = shopifyChargeId ? `charge_${sanitizeForDocId(shopifyChargeId)}` : `manual_${crypto.randomUUID()}`;
   const ledgerRef = firestore.collection('transactions').doc(ledgerId);
 
   return firestore.runTransaction(async (tx) => {

@@ -11,13 +11,18 @@ export class UnknownPackError extends Error {
   }
 }
 
-// Credits/price per pack (spec Section 12) — kept separate from BILLING_PLANS (config/shopify.js),
+// Credits granted per pack (spec Section 12) — kept separate from BILLING_PLANS (config/shopify.js),
 // which only carries what Shopify's billing API needs (price/interval), not what we grant for it.
-const CREDIT_PACKS = {
+// Packs are monthly recurring subscriptions (BillingInterval.Every30Days): this same amount is
+// granted again automatically on every renewal (see reconcileBillingState below), and since
+// creditBalance is a running total that never resets or expires, unused credits simply carry over
+// into the next month — merchants keep whatever they didn't spend.
+export const CREDIT_PACKS = {
   starter: { credits: 50, amountUSD: 9 },
   growth: { credits: 200, amountUSD: 29 },
   pro: { credits: 600, amountUSD: 69 },
 };
+export const PACK_PLAN_NAMES = Object.keys(CREDIT_PACKS);
 
 // The Unlimited subscription tier was retired as a purchasable plan (no more new subscribers),
 // but this name is kept so reconcileBillingState/cancelSubscription still correctly recognize
@@ -42,9 +47,11 @@ const APP_PURCHASE_ONE_TIME_CREATE_MUTATION = `#graphql
   }
 `;
 
-// POST /api/billing/purchase — returns a confirmationUrl the merchant is redirected to. Nothing
-// is credited here; that only happens once Shopify confirms the charge (see reconcileBillingState).
-export async function createOneTimePurchase({ session, packId, returnUrl, isTest = false }) {
+// POST /api/billing/purchase — subscribes the shop to a monthly recurring credit pack, returning
+// a confirmationUrl the merchant is redirected to. Nothing is credited here; that only happens
+// once Shopify confirms the subscription (see reconcileBillingState), and again automatically on
+// every 30-day renewal after that.
+export async function createPackSubscription({ session, packId, returnUrl, isTest = false }) {
   if (!CREDIT_PACKS[packId]) throw new UnknownPackError(packId);
   const { confirmationUrl } = await shopify.api.billing.request({
     session,
@@ -112,8 +119,9 @@ export async function createImageOptimizerSubscription({ session, returnUrl, isT
 
 // GET /api/billing/confirm — Shopify redirects here after the merchant approves or declines a
 // charge, without saying which one. Re-checking current billing state and reconciling against
-// whatever is now ACTIVE is the only reliable way to know what happened; addCredits() is
-// idempotent on shopifyChargeId, so revisiting this page never double-credits.
+// whatever is now ACTIVE is the only reliable way to know what happened. Also called opportunistically
+// (throttled) from GET /api/credits — see routes/api/credits.js — so a pack's monthly renewal gets
+// credited the next time the merchant opens the app, without needing a webhook or a new checkout.
 export async function reconcileBillingState({ session, isTest = false }) {
   // Deliberately NOT passing `plans` here — shopify-api's billing.check() filters
   // oneTimePurchases/appSubscriptions to only those whose name is in `plans` when it's provided,
@@ -127,15 +135,20 @@ export async function reconcileBillingState({ session, isTest = false }) {
   });
 
   const creditedPacks = [];
+
+  // Custom credit amounts remain one-time purchases — Shopify's billing API has no notion of an
+  // "arbitrary quantity" subscription. The 3 fixed packs used to live here too before they became
+  // recurring; this loop is kept only for custom purchases now, plus any legacy one-time pack
+  // purchase made before the switch (which stays ACTIVE forever and was already credited once).
   for (const purchase of oneTimePurchases) {
     if (purchase.status !== 'ACTIVE') continue;
 
-    const pack = CREDIT_PACKS[purchase.name];
-    if (pack) {
+    const legacyPack = CREDIT_PACKS[purchase.name];
+    if (legacyPack) {
       const { alreadyCredited } = await addCredits({
         shopDomain: session.shop,
-        creditsAdded: pack.credits,
-        amountUSD: pack.amountUSD,
+        creditsAdded: legacyPack.credits,
+        amountUSD: legacyPack.amountUSD,
         type: 'one_time_pack',
         packId: purchase.name,
         shopifyChargeId: purchase.id,
@@ -158,6 +171,38 @@ export async function reconcileBillingState({ session, isTest = false }) {
     }
   }
 
+  let activePackSubscription = null;
+  for (const sub of appSubscriptions) {
+    if (sub.status !== 'ACTIVE') continue;
+
+    const pack = CREDIT_PACKS[sub.name];
+    if (!pack) continue;
+
+    activePackSubscription = sub;
+    // A subscription's `id` is permanent for its whole lifetime, but `currentPeriodEnd` advances
+    // every time Shopify renews it — folding both into the idempotency key means this exact same
+    // call, re-run on every reconcile (including the throttled one on every app open), is a no-op
+    // until Shopify actually starts a new billing period, at which point addCredits() sees a new
+    // key and grants the pack again. No separate "have we billed this period yet" bookkeeping
+    // needed — the ledger's own idempotency does it for free.
+    const { alreadyCredited } = await addCredits({
+      shopDomain: session.shop,
+      creditsAdded: pack.credits,
+      amountUSD: pack.amountUSD,
+      type: 'pack_subscription',
+      packId: sub.name,
+      shopifyChargeId: `${sub.id}:${sub.currentPeriodEnd}`,
+    });
+    creditedPacks.push({ packId: sub.name, alreadyCredited, currentPeriodEnd: sub.currentPeriodEnd });
+  }
+
+  if (activePackSubscription) {
+    await shopsRepo.updatePackSubscription(session.shop, {
+      plan: activePackSubscription.name,
+      subscriptionId: activePackSubscription.id,
+    });
+  }
+
   const activeSubscription = appSubscriptions.find(
     (sub) => sub.status === 'ACTIVE' && sub.name === UNLIMITED_PLAN_NAME,
   );
@@ -174,6 +219,7 @@ export async function reconcileBillingState({ session, isTest = false }) {
 
   return {
     creditedPacks,
+    activePackPlan: activePackSubscription?.name ?? null,
     unlimited: Boolean(activeSubscription),
     imageOptimizerAddon: Boolean(activeImageOptimizerAddon),
   };
@@ -185,5 +231,8 @@ export async function cancelSubscription({ session, subscriptionId, planName, is
     await shopsRepo.updateImageOptimizerAddon(session.shop, false);
   } else {
     await shopsRepo.updatePlan(session.shop, 'free');
+    if (PACK_PLAN_NAMES.includes(planName)) {
+      await shopsRepo.clearPackSubscription(session.shop);
+    }
   }
 }

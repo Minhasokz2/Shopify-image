@@ -272,4 +272,57 @@ describe('creditLedger: addCredits (idempotent on shopifyChargeId)', () => {
     const shop = await firestore.collection('shops').doc('shop12.myshopify.com').get();
     expect(shop.data().creditBalance).toBe(205);
   });
+
+  // Shopify GraphQL ids are GIDs like "gid://shopify/AppSubscription/12345" — a real Firestore
+  // document id containing "/" is rejected outright by the SDK (verified against the real
+  // @google-cloud/firestore client, which validates paths client-side with no network call), so
+  // this must never be interpolated raw into a doc id. The in-memory fake used by these tests
+  // doesn't enforce that rule the way real Firestore does, so this test asserts the sanitized
+  // shape directly rather than relying on a thrown error to catch a regression.
+  it('sanitizes a GID-shaped shopifyChargeId so it never contains a raw "/"', async () => {
+    await seedShop('shop13.myshopify.com', { creditBalance: 0 });
+    await addCredits({
+      shopDomain: 'shop13.myshopify.com',
+      creditsAdded: 600,
+      amountUSD: 69,
+      type: 'pack_subscription',
+      packId: 'pro',
+      shopifyChargeId: 'gid://shopify/AppSubscription/111:2026-08-01T00:00:00Z',
+    });
+
+    const snapshot = await firestore.collection('transactions').get();
+    const transactionIds = snapshot.docs
+      .filter((doc) => doc.data().shopDomain === 'shop13.myshopify.com')
+      .map((doc) => doc.id);
+
+    expect(transactionIds).toHaveLength(1);
+    expect(transactionIds[0]).not.toContain('/');
+
+    const shop = await firestore.collection('shops').doc('shop13.myshopify.com').get();
+    expect(shop.data().creditBalance).toBe(600);
+  });
+
+  it('renews a subscription pack once per billing period, keyed on subscriptionId + currentPeriodEnd', async () => {
+    await seedShop('shop14.myshopify.com', { creditBalance: 0 });
+    const creditForPeriod = (currentPeriodEnd) =>
+      addCredits({
+        shopDomain: 'shop14.myshopify.com',
+        creditsAdded: 600,
+        amountUSD: 69,
+        type: 'pack_subscription',
+        packId: 'pro',
+        shopifyChargeId: `gid://shopify/AppSubscription/222:${currentPeriodEnd}`,
+      });
+
+    const month1 = await creditForPeriod('2026-08-01T00:00:00Z');
+    const month1Retry = await creditForPeriod('2026-08-01T00:00:00Z'); // e.g. re-checked on a later page load, same period
+    const month2 = await creditForPeriod('2026-09-01T00:00:00Z'); // Shopify actually renewed — new period
+
+    expect(month1.alreadyCredited).toBe(false);
+    expect(month1Retry.alreadyCredited).toBe(true);
+    expect(month2.alreadyCredited).toBe(false);
+
+    const shop = await firestore.collection('shops').doc('shop14.myshopify.com').get();
+    expect(shop.data().creditBalance).toBe(1200); // credited exactly twice, not three times
+  });
 });

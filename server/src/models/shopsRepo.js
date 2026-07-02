@@ -124,6 +124,25 @@ export const shopsRepo = {
     await repo.update(shopDomain, { plan });
   },
 
+  // Called from reconcileBillingState whenever a starter/growth/pro subscription is found ACTIVE.
+  // `plan` doubles as both the credits plan (used by assertSufficientCredits' unlimited check and
+  // shown on Billing.jsx) and the pack id; `activePackSubscriptionId` is kept so the merchant can
+  // cancel from within the app without an extra round trip to Shopify to look the id back up.
+  async updatePackSubscription(shopDomain, { plan, subscriptionId }) {
+    await repo.update(shopDomain, { plan, activePackSubscriptionId: subscriptionId });
+  },
+
+  async clearPackSubscription(shopDomain) {
+    await repo.update(shopDomain, { activePackSubscriptionId: null });
+  },
+
+  // Throttles how often GET /api/credits re-queries Shopify's billing API to detect a pack's
+  // monthly renewal — every request would be wasteful and slow; this timestamp lets the route
+  // skip the check unless enough time has passed since the last one.
+  async updateLastBillingCheck(shopDomain) {
+    await repo.update(shopDomain, { lastBillingCheckAt: FieldValue.serverTimestamp() });
+  },
+
   // Separate from `plan` (the credits/unlimited-generation plan) — the Image Optimizer add-on is
   // its own $2.99/mo AppSubscription a shop can hold independently of its generation plan.
   async updateImageOptimizerAddon(shopDomain, active) {

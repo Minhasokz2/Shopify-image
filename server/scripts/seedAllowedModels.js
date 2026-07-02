@@ -95,14 +95,17 @@ const EXTENDED_MODELS = [
     id: 'gemini-3-1-flash-retouch',
     falModel: 'gemini-3-1-flash-retouch',
     label: 'Gemini 3.1 Flash Image (Retouch/Enhance)',
-    creditCost: 1, // real cost $0.08/image
+    creditCost: 2, // real cost $0.08/image; creditCost 1 left this the ONLY sub-50%-margin model at
+    // the Pro pack's $0.115/credit rate (30% worst-case) — bumped to restore the >=50% floor.
     supportsMultiImage: true,
   },
   {
     id: 'gpt-image-2-banner',
     falModel: 'gpt-image-2-banner',
     label: 'GPT Image 2 (Banner/Text Edit) — attach image(s) + prompt',
-    creditCost: 9, // real cost $1.00/image — highest-cost model in the catalog by far
+    creditCost: 18, // real cost $1.00/image — highest-cost model in the catalog by far. creditCost
+    // 9 priced this at ~3.4% margin (razor-thin, effectively break-even after Shopify's revenue
+    // share/payment overhead) if a merchant spent an entire Pro pack on it; 18 restores >=50%.
     supportsMultiImage: true,
   },
   {
@@ -130,7 +133,8 @@ const EXTENDED_MODELS = [
     id: 'fashn-tryon',
     falModel: 'fashn-tryon',
     label: 'FASHN Virtual Try-On (person + garment — see the Virtual Try-On page)',
-    creditCost: 1, // real cost $0.075/image
+    creditCost: 2, // real cost $0.075/image; creditCost 1 was under the 50%-margin floor at the
+    // Pro pack's rate (35% worst-case) — bumped to restore it, same reasoning as gemini-3-1-flash-retouch.
     supportsMultiImage: true,
   },
   {
