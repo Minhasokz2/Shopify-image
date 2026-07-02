@@ -18,6 +18,7 @@ import { apiClient } from '../api/client.js';
 import { BeforeAfterSlider } from '../components/BeforeAfterSlider.jsx';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { GenerationProgress } from '../components/GenerationProgress.jsx';
+import { ProductPickerModal } from '../components/ProductPickerModal.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { downloadFile } from '../utils/download.js';
 import { inferFormatFromUrl } from '../utils/imageFormat.js';
@@ -44,6 +45,14 @@ export default function GenerationReview() {
   const [compressSelected, setCompressSelected] = useState(() => new Set());
   const [compressError, setCompressError] = useState(null);
 
+  // Publishing isn't locked to the product the job was created for — the backend
+  // (publishJobToShopify) never required that, it just accepts whatever productId it's given.
+  // `targetProduct` is only set once the merchant explicitly picks a different product; until
+  // then, publishing falls back to the job's own product (if it has one).
+  const [targetProduct, setTargetProduct] = useState(null);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const effectiveProductId = targetProduct?.id ?? job?.productId ?? null;
+
   const isVideo = job?.contentType === 'video';
 
   // The job worker only deducts credits once generation succeeds (see
@@ -58,7 +67,7 @@ export default function GenerationReview() {
   const publishMutation = useMutation({
     mutationFn: () =>
       apiClient.post(`/api/jobs/${jobId}/publish`, {
-        productId: job.productId,
+        productId: effectiveProductId,
         approvedIndices: Array.from(approved),
       }),
   });
@@ -257,28 +266,50 @@ export default function GenerationReview() {
               </InlineStack>
             ) : null}
 
-            {job.productId ? (
-              <InlineStack align="end">
-                <Button
-                  variant="primary"
-                  disabled={approvedCount === 0}
-                  loading={publishMutation.isPending}
-                  onClick={handlePublish}
-                >
-                  {`Publish approved (${approvedCount})`}
+            <Card>
+              <InlineStack align="space-between" blockAlign="center" wrap>
+                <BlockStack gap="050">
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Publish to
+                  </Text>
+                  <Text as="span" fontWeight="medium">
+                    {targetProduct
+                      ? targetProduct.title
+                      : job.productId
+                        ? 'The product this was generated from'
+                        : 'No product chosen yet'}
+                  </Text>
+                </BlockStack>
+                <Button onClick={() => setProductPickerOpen(true)}>
+                  {targetProduct || job.productId ? 'Use a different product' : 'Choose a product'}
                 </Button>
               </InlineStack>
-            ) : (
-              // No real Shopify product behind this job (e.g. a Virtual Try-On job whose garment
-              // was uploaded rather than picked from the catalog) — nothing to publish media to.
-              <Text as="p" variant="bodySm" tone="subdued">
-                This result isn't tied to a product in your store, so it can't be published to a
-                listing — use the Download button above to save it instead.
-              </Text>
-            )}
+            </Card>
+
+            <InlineStack align="end">
+              <Button
+                variant="primary"
+                disabled={approvedCount === 0 || !effectiveProductId}
+                loading={publishMutation.isPending}
+                onClick={handlePublish}
+              >
+                {`Publish approved (${approvedCount})`}
+              </Button>
+            </InlineStack>
           </>
         ) : null}
       </BlockStack>
+
+      {productPickerOpen ? (
+        <ProductPickerModal
+          title="Choose a product to publish to"
+          onClose={() => setProductPickerOpen(false)}
+          onSelect={(product) => {
+            setTargetProduct(product);
+            setProductPickerOpen(false);
+          }}
+        />
+      ) : null}
     </Page>
   );
 }
