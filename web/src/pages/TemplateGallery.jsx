@@ -222,38 +222,71 @@ export default function TemplateGallery() {
                   return (
                     <Box
                       key={template.id}
-                      padding="300"
                       borderWidth="025"
                       borderColor="border"
                       borderRadius="200"
+                      overflowX="hidden"
+                      overflowY="hidden"
+                      background="bg-surface"
                       minWidth="220px"
+                      maxWidth="220px"
                     >
-                      <BlockStack gap="200">
-                        <Text as="h3" fontWeight="medium">
-                          {template.name}
-                        </Text>
-                        <InlineStack gap="150">
-                          <Badge tone={canAfford ? undefined : 'critical'}>{`${template.creditCost} credits`}</Badge>
-                          {template.setting ? <Badge tone="info">{template.setting}</Badge> : null}
-                        </InlineStack>
-                        {!canAfford ? (
-                          <Text as="span" variant="bodySm" tone="critical">
-                            Not enough credits ({balance} left)
-                          </Text>
-                        ) : null}
-                        <Button
-                          onClick={() => handleSelectTemplate(template)}
-                          loading={generateMutation.isPending}
-                          disabled={!canAfford}
-                        >
-                          {!canAfford
-                            ? 'Top up to use'
-                            : selectedProducts.length === 0
-                              ? 'Select product'
-                              : template.category === 'scene'
-                                ? 'Generate'
-                                : 'Continue'}
-                        </Button>
+                      <BlockStack gap="0">
+                        <div style={{ position: 'relative' }}>
+                          {template.thumbnailUrl ? (
+                            <img
+                              src={template.thumbnailUrl}
+                              alt={template.name}
+                              style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                            />
+                          ) : (
+                            <Box background="bg-surface-secondary" minHeight="160px" padding="0">
+                              <div
+                                style={{
+                                  height: 160,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Text as="span" tone="subdued" variant="bodySm">
+                                  No preview
+                                </Text>
+                              </div>
+                            </Box>
+                          )}
+                          <div style={{ position: 'absolute', top: 8, right: 8 }}>
+                            <Badge tone={canAfford ? undefined : 'critical'}>{`${template.creditCost} credits`}</Badge>
+                          </div>
+                        </div>
+
+                        <Box padding="300">
+                          <BlockStack gap="200">
+                            <Text as="h3" fontWeight="medium">
+                              {template.name}
+                            </Text>
+                            {template.setting ? <Badge tone="info">{template.setting}</Badge> : null}
+                            {!canAfford ? (
+                              <Text as="span" variant="bodySm" tone="critical">
+                                Not enough credits ({balance} left)
+                              </Text>
+                            ) : null}
+                            <Button
+                              onClick={() => handleSelectTemplate(template)}
+                              loading={generateMutation.isPending}
+                              disabled={!canAfford}
+                              fullWidth
+                            >
+                              {!canAfford
+                                ? 'Top up to use'
+                                : selectedProducts.length === 0
+                                  ? 'Select product'
+                                  : template.category === 'scene'
+                                    ? 'Generate'
+                                    : 'Continue'}
+                            </Button>
+                          </BlockStack>
+                        </Box>
                       </BlockStack>
                     </Box>
                   );
