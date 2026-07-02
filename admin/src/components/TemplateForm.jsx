@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
 
-// Must match server/src/routes/admin/templates.js's MODELS_BY_CATEGORY exactly — the server is
-// the source of truth and will 400 on a mismatch, this is just so the form only offers valid
-// choices instead of letting the admin discover the constraint from an error message.
-// 'imagen-4' removed — verified to have zero image-input parameters (pure text-to-image), so it
-// silently discarded the actual product photo for any template assigned to it.
+// Must match server/src/services/fal.js's SCENE_MODEL_IDS (the actual source of truth, also used
+// by routes/admin/templates.js and routes/admin/models.js) exactly — the server will 400 on a
+// mismatch, this is just so the form only offers valid choices instead of letting the admin
+// discover the constraint from an error message. All 5 are verified to have a genuine
+// image-input parameter; 'imagen-4' is deliberately excluded (pure text-to-image — it silently
+// discarded the actual product photo for any template assigned to it).
 const MODELS_BY_CATEGORY = {
-  scene: ['flux-kontext-max', 'flux-kontext-pro'],
+  scene: ['flux-kontext-max', 'flux-kontext-pro', 'seedream-v4-edit', 'nano-banana', 'nano-banana-pro'],
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };
@@ -116,7 +117,7 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
             onChange={updateField('preferredModel')}
             helpText={
               form.category === 'scene'
-                ? 'Ignored for skincare/cosmetics/makeup/beauty products — those always route to Imagen 4 regardless of this setting.'
+                ? 'Ignored for skincare/cosmetics/makeup/beauty products — those always route to FLUX Kontext Max for color accuracy, regardless of this setting.'
                 : undefined
             }
           />

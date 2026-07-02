@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const subscribe = vi.fn(async () => ({ data: { images: [{ url: 'https://fal.example.com/out.png' }] } }));
 vi.mock('@fal-ai/client', () => ({ fal: { config: vi.fn(), subscribe } }));
 
-const { generateCustomScene } = await import('../../src/services/fal.js');
+const { generateCustomScene, generateScene, SCENE_MODEL_IDS } = await import('../../src/services/fal.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -66,5 +66,58 @@ describe('generateCustomScene: request shape per model', () => {
     await expect(
       generateCustomScene({ model: 'does-not-exist', cleanImageUrls: ['https://x/a.png'], prompt: 'p' }),
     ).rejects.toThrow('Unknown custom scene model: does-not-exist');
+  });
+});
+
+// A template's preferredModel can be ANY of these 5 (routes/admin/templates.js imports
+// SCENE_MODEL_IDS directly from here) — this is the fix for templates only being able to pick
+// 2 of the 5 catalog models. generateScene must therefore know the correct image-input shape for
+// all 5, not just the 2 that happened to be wired up first.
+describe('generateScene: request shape per model (template flow)', () => {
+  it('exposes all 5 verified models for templates to pick from, matching the custom-prompt catalog', () => {
+    expect(SCENE_MODEL_IDS).toEqual([
+      'flux-kontext-max',
+      'flux-kontext-pro',
+      'seedream-v4-edit',
+      'nano-banana',
+      'nano-banana-pro',
+    ]);
+  });
+
+  it('flux-kontext-max: sends a singular image_url (templates only ever have one source image)', async () => {
+    await generateScene({
+      model: 'flux-kontext-max',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'Studio scene',
+      productAttributes: { color: 'red' },
+    });
+
+    const [endpoint, { input }] = subscribe.mock.calls[0];
+    expect(endpoint).toBe('fal-ai/flux-pro/kontext/max');
+    expect(input.image_url).toBe('https://x/clean.png');
+    expect(input.image_urls).toBeUndefined();
+    expect(input.num_images).toBe(4);
+  });
+
+  it.each(['seedream-v4-edit', 'nano-banana', 'nano-banana-pro'])(
+    '%s: wraps the single clean image in an array — these endpoints have no singular image_url variant',
+    async (model) => {
+      await generateScene({
+        model,
+        cleanImageUrl: 'https://x/clean.png',
+        promptTemplate: 'Studio scene',
+        productAttributes: { color: 'blue' },
+      });
+
+      const [, { input }] = subscribe.mock.calls[0];
+      expect(input.image_urls).toEqual(['https://x/clean.png']);
+      expect(input.image_url).toBeUndefined();
+    },
+  );
+
+  it('throws for an unknown model instead of silently ignoring the image (the original imagen-4 failure mode)', async () => {
+    await expect(
+      generateScene({ model: 'does-not-exist', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
+    ).rejects.toThrow('Unknown scene model: does-not-exist');
   });
 });

@@ -3,27 +3,20 @@ import { env } from '../config/env.js';
 
 fal.config({ credentials: env.FAL_KEY });
 
-// Fixed-prompt template flow (spec Section 7/8/10) — every entry here MUST be a real
-// image-to-image/editing endpoint, verified live against fal.ai's catalog. Imagen 4 was removed
-// after live schema verification showed it has zero image-input parameters (pure text-to-image)
-// — it was silently ignoring the product photo entirely, including via the color-critical
-// category override in modelRouter.js, which routed skincare/cosmetics/beauty templates to it.
-const SCENE_ENDPOINTS = {
-  'flux-kontext-max': 'fal-ai/flux-pro/kontext/max',
-  'flux-kontext-pro': 'fal-ai/flux-pro/kontext',
-};
-
 const VIDEO_ENDPOINTS = {
   'seedance-fast': 'bytedance/seedance-2.0/fast/image-to-video',
   'kling-3': 'kling/kling-3.0/image-to-video',
   'wan-2.7': 'wan/2.7/style-transfer',
 };
 
-// Custom-prompt flow's model registry (admin-managed via allowed_models — see
-// routes/admin/models.js). Every endpoint_id and its image-input shape below was verified live
-// against fal.ai's real schema (get_model_schema), not guessed — the whole point of this table
-// existing is to never repeat the Imagen 4 mistake. `imageParam` is the ONLY thing that varies
-// meaningfully between these models' request shape:
+// Single source of truth for every scene-capable model, shared by BOTH the fixed-prompt template
+// flow (generateScene) and the custom-prompt flow (generateCustomScene) — see
+// routes/admin/templates.js and routes/admin/models.js, which both import SCENE_MODEL_IDS rather
+// than hardcoding their own lists. Every endpoint_id and its image-input shape below was verified
+// live against fal.ai's real schema (get_model_schema), not guessed — the whole point of this
+// table existing is to never repeat the Imagen 4 mistake (it was previously possible for a
+// template to be assigned a model this table didn't know how to call correctly). `imageParam` is
+// the thing that varies meaningfully between these models' request shape:
 //   - 'image_url'  → singular endpoint takes exactly one image; a dedicated `multiEndpoint`
 //                    (verified separately) is used instead when more than one image is selected.
 //   - 'image_urls' → the endpoint always takes an array, even for a single image — there is no
@@ -53,29 +46,32 @@ const CUSTOM_SCENE_MODELS = {
   },
 };
 
+export const SCENE_MODEL_IDS = Object.keys(CUSTOM_SCENE_MODELS);
+
 // Step 1 of the two-step pipeline (spec Section 4/8) — always runs before scene/UGC generation.
 export async function removeBackground(imageUrl) {
   const result = await fal.subscribe('fal-ai/birefnet', { input: { image_url: imageUrl } });
   return result.data.image.url;
 }
 
-// Step 2 for static scenes (template flow — fixed prompt, always exactly one source image).
+// Step 2 for static scenes (template flow — fixed prompt, always exactly one source image, always
+// a fixed batch of 4 — unlike the custom flow, template cost is flat/per-job, not per-image).
 // `productAttributes.color` is threaded into the prompt as an explicit product-fidelity lock.
 export async function generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
-  const endpoint = SCENE_ENDPOINTS[model];
-  if (!endpoint) throw new Error(`Unknown scene model: ${model}`);
+  const config = CUSTOM_SCENE_MODELS[model];
+  if (!config) throw new Error(`Unknown scene model: ${model}`);
 
   const lockRules = `Preserve exact product color (${productAttributes?.color ?? 'as shown'}), logo, and label text. Do not alter product shape or proportions.`;
   const stylePrefix = brandStyleProfile
     ? `Match brand visual style: palette ${brandStyleProfile.palette.join(', ')}, tone ${brandStyleProfile.tone}. `
     : '';
-  const result = await fal.subscribe(endpoint, {
-    input: {
-      prompt: `${stylePrefix}${lockRules} Scene: ${promptTemplate}`,
-      image_url: cleanImageUrl,
-      num_images: 4,
-    },
-  });
+  const input = {
+    prompt: `${stylePrefix}${lockRules} Scene: ${promptTemplate}`,
+    num_images: 4,
+    [config.imageParam]: config.imageParam === 'image_urls' ? [cleanImageUrl] : cleanImageUrl,
+  };
+
+  const result = await fal.subscribe(config.endpoint, { input });
   return result.data.images.map((img) => img.url);
 }
 

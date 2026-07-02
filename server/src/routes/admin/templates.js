@@ -1,14 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { templatesRepo } from '../../models/templatesRepo.js';
+import { SCENE_MODEL_IDS } from '../../services/fal.js';
 
 const router = Router();
 
-// 'imagen-4' removed after live verification showed it has zero image-input parameters (pure
-// text-to-image) — it was silently discarding the actual product photo for every template
-// assigned to it. Keep in sync with SCENE_ENDPOINTS in services/fal.js.
+// Scene models come from fal.js's SCENE_MODEL_IDS — the single source of truth also used by the
+// custom-prompt allowed-models catalog (routes/admin/models.js) and by generateScene/
+// generateCustomScene themselves. Previously this list was hardcoded here and drifted out of sync
+// with the allowed-models catalog (only 2 of the 5 verified models were selectable for
+// templates) — importing it directly makes that drift impossible going forward.
 const MODELS_BY_CATEGORY = {
-  scene: ['flux-kontext-max', 'flux-kontext-pro'],
+  scene: SCENE_MODEL_IDS,
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };

@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { allowedModelsRepo } from '../../models/allowedModelsRepo.js';
+import { SCENE_MODEL_IDS } from '../../services/fal.js';
 
 const router = Router();
 
-// Scene-only for now (spec decision) — must exactly match the keys of CUSTOM_SCENE_MODELS in
-// services/fal.js, which is what actually executes these at generation time. Every one of these
-// was verified live against fal.ai's real schema to have a genuine image-input parameter before
-// being added here — see the "Add allowed model" research: Imagen 4 was evaluated and rejected
-// for having none (pure text-to-image), which is why it isn't in this list.
-const KNOWN_SCENE_MODELS = ['flux-kontext-max', 'flux-kontext-pro', 'seedream-v4-edit', 'nano-banana', 'nano-banana-pro'];
+// Scene-only for now (spec decision) — sourced directly from fal.js's SCENE_MODEL_IDS, the same
+// list routes/admin/templates.js uses, so the allowed-models catalog and the template model
+// picker can never drift apart again. Every one of these was verified live against fal.ai's real
+// schema to have a genuine image-input parameter before being added — Imagen 4 was evaluated and
+// rejected for having none (pure text-to-image), which is why it isn't in this list.
+const KNOWN_SCENE_MODELS = SCENE_MODEL_IDS;
 
 const idSchema = z
   .string()
