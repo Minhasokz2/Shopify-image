@@ -116,6 +116,14 @@ export const shopsRepo = {
     });
   },
 
+  // Sign-out: clears the Google verification so GoogleAuthGate locks the app again until the
+  // merchant re-verifies. Deliberately does NOT touch `trialCreditsGranted` or the
+  // used_trial_emails dedupe doc (markGoogleVerified checks that collection, not this shop's own
+  // flag) — signing out and back in with the same email must never re-grant the free trial.
+  async clearGoogleVerification(shopDomain) {
+    await repo.update(shopDomain, { googleVerifiedAt: null, googleEmail: null, googleId: null });
+  },
+
   async markUninstalled(shopDomain) {
     await repo.update(shopDomain, { plan: 'uninstalled', uninstalledAt: FieldValue.serverTimestamp() });
   },

@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Page,
@@ -46,6 +47,17 @@ export default function Dashboard() {
   const { data: googleAccount } = useGoogleAccount();
   const { data: imageOptimizerUsage } = useImageOptimizerUsage();
   const jobs = data?.jobs ?? [];
+  const [signOutError, setSignOutError] = useState(null);
+
+  // There's no separate client-side session to tear down — the Shopify embedded iframe stays
+  // authenticated via App Bridge regardless. This just clears the shop's Google verification
+  // server-side and reloads, so GoogleAuthGate re-mounts, re-checks status, and shows its lock
+  // screen until someone verifies a Google account again.
+  const signOutMutation = useMutation({
+    mutationFn: () => apiClient.post('/api/auth/google/signout', {}),
+    onSuccess: () => window.location.reload(),
+    onError: (err) => setSignOutError(err.message || 'Failed to sign out.'),
+  });
 
   return (
     <Page
@@ -76,8 +88,16 @@ export default function Dashboard() {
                   Signed in as {googleAccount.googleEmail}
                 </Text>
               ) : null}
+              {signOutError ? (
+                <Banner tone="critical" onDismiss={() => setSignOutError(null)}>
+                  {signOutError}
+                </Banner>
+              ) : null}
               <InlineStack gap="200">
                 <Button onClick={() => navigate('/billing')}>Manage billing</Button>
+                <Button onClick={() => signOutMutation.mutate()} loading={signOutMutation.isPending}>
+                  Sign out
+                </Button>
               </InlineStack>
             </BlockStack>
           </Card>

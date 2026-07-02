@@ -20,4 +20,13 @@ router.post('/auth/google/init', async (req, res) => {
   res.json({ authorizeUrl: buildGoogleAuthUrl(state) });
 });
 
+// POST /api/auth/google/signout — the shop's Shopify session itself is untouched (there's no
+// separate app session to destroy; App Bridge re-authenticates the embedded iframe on its own),
+// this only clears the Google verification so GoogleAuthGate locks the app again until whoever's
+// using it verifies a Google account again.
+router.post('/auth/google/signout', async (req, res) => {
+  await shopsRepo.clearGoogleVerification(req.shopDomain);
+  res.json({ signedOut: true });
+});
+
 export default router;

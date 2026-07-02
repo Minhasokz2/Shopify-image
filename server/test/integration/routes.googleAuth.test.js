@@ -112,6 +112,47 @@ describe('POST /api/auth/google/init', () => {
   });
 });
 
+describe('POST /api/auth/google/signout', () => {
+  it('clears Google verification so the shop is locked out again', async () => {
+    await firestore.collection('shops').doc(SHOP).update({ googleVerifiedAt: new Date(), googleEmail: 'owner@example.com' });
+
+    const app = createApp();
+    const res = await request(app).post('/api/auth/google/signout').set(await authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ signedOut: true });
+
+    const statusRes = await request(app).get('/api/auth/google/status').set(await authHeader());
+    expect(statusRes.body).toEqual({ verified: false, googleEmail: null });
+  });
+
+  it('rejects requests with no valid session token', async () => {
+    const app = createApp();
+    const res = await request(app).post('/api/auth/google/signout');
+    expect(res.status).not.toBe(200);
+  });
+
+  it('does not re-grant the free trial on sign-out + re-verify with the same email', async () => {
+    verifyGoogleAuthCode.mockResolvedValue({ email: 'signout-test@example.com', googleId: 'g-2' });
+    const state = signState({ shop: SHOP });
+    const app = createApp();
+
+    await request(app).get('/auth/google/callback').query({ code: 'auth-code', state });
+    let shopDoc = await firestore.collection('shops').doc(SHOP).get();
+    expect(shopDoc.data().creditBalance).toBe(10);
+
+    await request(app).post('/api/auth/google/signout').set(await authHeader());
+    shopDoc = await firestore.collection('shops').doc(SHOP).get();
+    expect(shopDoc.data().googleVerifiedAt).toBeNull();
+    expect(shopDoc.data().creditBalance).toBe(10); // unaffected by sign-out itself
+
+    await request(app).get('/auth/google/callback').query({ code: 'auth-code-2', state });
+    shopDoc = await firestore.collection('shops').doc(SHOP).get();
+    expect(shopDoc.data().googleVerifiedAt).toBeTruthy(); // re-verified successfully
+    expect(shopDoc.data().creditBalance).toBe(10); // trial not granted twice
+  });
+});
+
 describe('GET /auth/google/callback', () => {
   it('verifies the code, marks the shop Google-verified, and grants the trial', async () => {
     verifyGoogleAuthCode.mockResolvedValue({ email: 'owner@example.com', googleId: 'g-1' });
