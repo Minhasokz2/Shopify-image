@@ -32,7 +32,7 @@ export default function ImageOptimizerSettings() {
 
   return (
     <Page
-      title="Image Optimizer — Settings & Plans"
+      title="Compress Image — Settings & Plans"
       backAction={{ content: 'Convert Images', onAction: () => navigate('/image-optimizer') }}
     >
       <Layout>
@@ -102,7 +102,7 @@ export default function ImageOptimizerSettings() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="100">
                   <Text as="h3" variant="headingSm">
-                    Image Optimizer unlimited
+                    Compress Image unlimited
                   </Text>
                   <Text as="p" variant="heading2xl">
                     $2.99/mo

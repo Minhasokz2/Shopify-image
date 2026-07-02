@@ -25,7 +25,7 @@ const NAV_LINKS = [
   { to: '/templates', label: 'Templates' },
   { to: '/bulk', label: 'Bulk Queue' },
   { to: '/history', label: 'Job History' },
-  { to: '/image-optimizer', label: 'Image Optimizer' },
+  { to: '/image-optimizer', label: 'Compress Image' },
   { to: '/brand', label: 'Brand Settings' },
   { to: '/billing', label: 'Billing' },
   { to: '/referrals', label: 'Referrals' },

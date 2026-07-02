@@ -106,7 +106,7 @@ export default function Dashboard() {
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h2" variant="headingMd">
-                  Image Optimizer
+                  Compress Image
                 </Text>
                 <Button onClick={() => navigate('/image-optimizer')}>Convert images</Button>
               </InlineStack>

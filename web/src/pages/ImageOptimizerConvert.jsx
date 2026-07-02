@@ -169,7 +169,7 @@ export default function ImageOptimizerConvert() {
           {usage ? (
             <Banner tone={usage.unlimited ? 'success' : overQuota ? 'warning' : 'info'}>
               {usage.unlimited
-                ? 'Unlimited conversions — Image Optimizer add-on active.'
+                ? 'Unlimited conversions — Compress Image add-on active.'
                 : `${usage.remaining} of ${usage.dailyLimit} free conversions left today.`}
             </Banner>
           ) : null}
