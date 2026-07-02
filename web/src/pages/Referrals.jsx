@@ -1,6 +1,35 @@
 import { useEffect, useState } from 'react';
-import { BlockStack, Badge, Banner, Button, Card, EmptyState, IndexTable, InlineStack, Layout, Page, Text } from '@shopify/polaris';
+import {
+  BlockStack,
+  Badge,
+  Banner,
+  Box,
+  Button,
+  Card,
+  EmptyState,
+  IndexTable,
+  InlineStack,
+  Layout,
+  Page,
+  Spinner,
+  Text,
+} from '@shopify/polaris';
+import { GiftCardIcon, CashDollarIcon, PersonAddIcon, DuplicateIcon, ClipboardCheckIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
+
+function StatBlock({ value, label }) {
+  return (
+    <BlockStack gap="050">
+      <Text as="span" variant="headingLg">
+        {value}
+      </Text>
+      <Text as="span" tone="subdued" variant="bodySm">
+        {label}
+      </Text>
+    </BlockStack>
+  );
+}
 
 export default function Referrals() {
   const [data, setData] = useState(null);
@@ -35,24 +64,29 @@ export default function Referrals() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Your referral code
-              </Text>
+              <SectionHeading icon={GiftCardIcon}>Your referral code</SectionHeading>
               {loading ? (
-                <Text as="span" tone="subdued">
-                  Loading…
-                </Text>
+                <Box padding="400">
+                  <InlineStack align="center">
+                    <Spinner accessibilityLabel="Loading referral code" size="small" />
+                  </InlineStack>
+                </Box>
               ) : !data?.referralCode ? (
-                <Text as="p" tone="subdued">
-                  No referral code has been generated for this shop yet.
-                </Text>
+                <EmptyState
+                  heading="No referral code yet"
+                  image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+                >
+                  <p>A referral code will appear here once one has been generated for this shop.</p>
+                </EmptyState>
               ) : (
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="headingLg" fontWeight="bold">
-                    {data.referralCode}
-                  </Text>
-                  <Button onClick={handleCopy}>{copied ? 'Copied!' : 'Copy to clipboard'}</Button>
-                </InlineStack>
+                <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                  <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                    <StatBlock value={data.referralCode} label="Share this code with other merchants" />
+                    <Button icon={copied ? ClipboardCheckIcon : DuplicateIcon} onClick={handleCopy}>
+                      {copied ? 'Copied!' : 'Copy to clipboard'}
+                    </Button>
+                  </InlineStack>
+                </Box>
               )}
             </BlockStack>
           </Card>
@@ -60,19 +94,25 @@ export default function Referrals() {
 
         <Layout.Section>
           <Card>
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h3" variant="headingSm">
-                Total commission owed
-              </Text>
-              <Text as="span" variant="headingLg">
-                ${(data?.totalCommissionOwedUSD ?? 0).toFixed(2)}
-              </Text>
-            </InlineStack>
+            <BlockStack gap="300">
+              <SectionHeading icon={CashDollarIcon} variant="headingSm">
+                Referral earnings
+              </SectionHeading>
+              <StatBlock
+                value={`$${(data?.totalCommissionOwedUSD ?? 0).toFixed(2)}`}
+                label="Total commission owed"
+              />
+            </BlockStack>
           </Card>
         </Layout.Section>
 
         <Layout.Section>
           <Card padding="0">
+            <Box padding="400">
+              <SectionHeading icon={PersonAddIcon} variant="headingSm">
+                Referred shops
+              </SectionHeading>
+            </Box>
             {!loading && (data?.referrals ?? []).length === 0 ? (
               <EmptyState
                 heading="No referrals yet"
