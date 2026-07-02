@@ -49,7 +49,7 @@ export default function App() {
   if (!adminKey) {
     return (
       <Frame>
-        <Page title="VisualKit Admin" subtitle="Template catalog management">
+        <Page title="MotionArt Admin" subtitle="Template catalog management">
           <Card>
             <BlockStack gap="400">
               <Text as="p" tone="subdued">

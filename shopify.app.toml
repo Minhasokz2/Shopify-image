@@ -1,9 +1,9 @@
-# Shopify app configuration for VisualKit.
+# Shopify app configuration for MotionArt.
 # client_id is still a placeholder — it's a real credential this environment doesn't have
 # access to. Replace it via `shopify app config link` against the real Partner Dashboard app
 # record (pulls client_id automatically), or paste it in by hand before running the Shopify CLI
 # against this file. application_url/redirect_urls below are the real production values.
-name = "VisualKit"
+name = "MotionArt"
 client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
 application_url = "https://splugin.linkgrab.io"
 embedded = true

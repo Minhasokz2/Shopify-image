@@ -1,8 +1,8 @@
 {
-  "name": "visualkit",
+  "name": "motionart",
   "private": true,
   "version": "1.0.0",
-  "description": "VisualKit — AI product image, UGC & video generator for Shopify",
+  "description": "MotionArt — AI product image, UGC & video generator for Shopify",
   "workspaces": [
     "server",
     "web",

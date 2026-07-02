@@ -61,7 +61,7 @@ export default function Dashboard() {
 
   return (
     <Page
-      title="VisualKit"
+      title="MotionArt"
       subtitle="AI product photos — generated in a click"
       primaryAction={{ content: 'Pick products', onAction: () => navigate('/products') }}
     >

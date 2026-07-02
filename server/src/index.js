@@ -10,7 +10,7 @@ initSentry();
 const app = createApp();
 
 app.listen(env.PORT, async () => {
-  logger.info({ port: env.PORT }, 'VisualKit server listening');
+  logger.info({ port: env.PORT }, 'MotionArt server listening');
   try {
     // Resume any job left `pending`/`processing` by a killed or redeployed process — see
     // services/jobWorker.js for why this is a fallback path, not the primary dispatch mechanism.

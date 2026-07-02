@@ -78,7 +78,7 @@ export default function BrandSettings() {
                 Extract your brand style
               </Text>
               <Text as="p" tone="subdued">
-                Add 3-5 of your product page URLs. VisualKit reads them and extracts a color palette and tone of
+                Add 3-5 of your product page URLs. MotionArt reads them and extracts a color palette and tone of
                 voice that gets applied to every generation.
               </Text>
 

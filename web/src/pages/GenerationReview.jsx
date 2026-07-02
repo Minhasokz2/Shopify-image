@@ -27,7 +27,7 @@ const IN_PROGRESS_STATUSES = new Set(['pending', 'processing']);
 
 function variationFilename(jobId, index, isVideo, url) {
   const ext = isVideo ? 'mp4' : inferFormatFromUrl(url) || 'png';
-  return `visualkit-${jobId}-${index + 1}.${ext}`;
+  return `motionart-${jobId}-${index + 1}.${ext}`;
 }
 
 export default function GenerationReview() {

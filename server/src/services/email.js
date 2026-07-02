@@ -3,18 +3,22 @@ import { env } from '../config/env.js';
 import { shopsRepo } from '../models/shopsRepo.js';
 
 const resend = new Resend(env.RESEND_API_KEY);
-const FROM_ADDRESS = 'VisualKit <notifications@visualkit.app>';
+// NOTE: the display name is updated to MotionArt, but the sending address is left on the
+// visualkit.app domain since that's what's actually verified with Resend — switching this to a
+// motionart.app (or similar) address requires verifying that domain in Resend first, or every
+// email will fail to send.
+const FROM_ADDRESS = 'MotionArt <notifications@visualkit.app>';
 
 export async function sendBatchCompleteEmail({ to, batchId, totalCount, completedCount, failedCount }) {
   const succeeded = completedCount - failedCount;
   await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `Your VisualKit batch is done (${succeeded}/${totalCount} succeeded)`,
+    subject: `Your MotionArt batch is done (${succeeded}/${totalCount} succeeded)`,
     html:
       `<p>Your bulk generation batch <strong>${batchId}</strong> has finished: ` +
       `${succeeded} succeeded${failedCount > 0 ? `, ${failedCount} failed` : ''} out of ${totalCount}.</p>` +
-      '<p>Review and publish the results from your VisualKit dashboard.</p>',
+      '<p>Review and publish the results from your MotionArt dashboard.</p>',
   });
 }
 
@@ -22,7 +26,7 @@ export async function sendBatchCompleteEmail({ to, batchId, totalCount, complete
 export const NURTURE_SEQUENCE = [
   {
     day: 0,
-    subject: 'Welcome to VisualKit — your 10 free credits are ready',
+    subject: 'Welcome to MotionArt — your 10 free credits are ready',
     html: '<p>You\'ve got 10 free credits. Generate your first AI product scene from the Dashboard.</p>',
   },
   {
@@ -37,7 +41,7 @@ export const NURTURE_SEQUENCE = [
   },
   {
     day: 7,
-    subject: 'Still exploring VisualKit?',
+    subject: 'Still exploring MotionArt?',
     html: '<p>Bulk-generate scenes for your whole catalog in one batch, then review and publish together.</p>',
   },
   {

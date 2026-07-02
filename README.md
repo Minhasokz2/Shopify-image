@@ -1,4 +1,4 @@
-# VisualKit
+# MotionArt
 
 AI product photography, UGC-style on-model content, and short product videos for Shopify merchants — generated from a merchant's existing catalog images, with a two-step pipeline (background removal → routed model) that preserves exact product color, logo, label text, shape, and proportions.
 
