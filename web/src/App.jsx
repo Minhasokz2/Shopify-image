@@ -14,6 +14,10 @@ import JobHistory from './pages/JobHistory.jsx';
 import BrandSettings from './pages/BrandSettings.jsx';
 import Billing from './pages/Billing.jsx';
 import Referrals from './pages/Referrals.jsx';
+import ImageOptimizerConvert from './pages/ImageOptimizerConvert.jsx';
+import ImageOptimizerBatch from './pages/ImageOptimizerBatch.jsx';
+import ImageOptimizerHistory from './pages/ImageOptimizerHistory.jsx';
+import ImageOptimizerSettings from './pages/ImageOptimizerSettings.jsx';
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
@@ -21,6 +25,7 @@ const NAV_LINKS = [
   { to: '/templates', label: 'Templates' },
   { to: '/bulk', label: 'Bulk Queue' },
   { to: '/history', label: 'Job History' },
+  { to: '/image-optimizer', label: 'Image Optimizer' },
   { to: '/brand', label: 'Brand Settings' },
   { to: '/billing', label: 'Billing' },
   { to: '/referrals', label: 'Referrals' },
@@ -72,6 +77,10 @@ export default function App() {
         <Route path="/bulk" element={<BulkQueue />} />
         <Route path="/bulk/:batchId" element={<BulkQueue />} />
         <Route path="/history" element={<JobHistory />} />
+        <Route path="/image-optimizer" element={<ImageOptimizerConvert />} />
+        <Route path="/image-optimizer/batches/:batchId" element={<ImageOptimizerBatch />} />
+        <Route path="/image-optimizer/history" element={<ImageOptimizerHistory />} />
+        <Route path="/image-optimizer/settings" element={<ImageOptimizerSettings />} />
         <Route path="/brand" element={<BrandSettings />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/referrals" element={<Referrals />} />

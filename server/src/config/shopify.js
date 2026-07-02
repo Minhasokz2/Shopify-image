@@ -24,6 +24,13 @@ export const BILLING_PLANS = {
   unlimited: {
     lineItems: [{ amount: 29, currencyCode: 'USD', interval: BillingInterval.Every30Days }],
   },
+  // Image Optimizer add-on (separate feature from generation credits/unlimited above) — unlocks
+  // unlimited image conversions in place of the free tier's 10/day cap. See
+  // services/imageOptimizerQuota.js.
+  image_optimizer_addon: {
+    trialDays: 7,
+    lineItems: [{ amount: 2.99, currencyCode: 'USD', interval: BillingInterval.Every30Days }],
+  },
 };
 
 const appUrl = new URL(env.SHOPIFY_APP_URL);

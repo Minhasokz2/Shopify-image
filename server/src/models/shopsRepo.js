@@ -67,6 +67,7 @@ export const shopsRepo = {
       googleEmail: null,
       googleId: null,
       trialCreditsGranted: false,
+      imageOptimizerAddon: false,
     };
     await repo.create(shopDomain, data);
     return { id: shopDomain, ...data, isNew: true };
@@ -121,6 +122,12 @@ export const shopsRepo = {
 
   async updatePlan(shopDomain, plan) {
     await repo.update(shopDomain, { plan });
+  },
+
+  // Separate from `plan` (the credits/unlimited-generation plan) — the Image Optimizer add-on is
+  // its own $2.99/mo AppSubscription a shop can hold independently of its generation plan.
+  async updateImageOptimizerAddon(shopDomain, active) {
+    await repo.update(shopDomain, { imageOptimizerAddon: active });
   },
 
   async findActiveShops() {

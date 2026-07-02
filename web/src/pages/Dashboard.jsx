@@ -16,6 +16,7 @@ import {
 } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 
 const STATUS_TONE = {
   succeeded: 'success',
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useRecentJobs();
   const { data: googleAccount } = useGoogleAccount();
+  const { data: imageOptimizerUsage } = useImageOptimizerUsage();
   const jobs = data?.jobs ?? [];
 
   return (
@@ -94,6 +96,47 @@ export default function Dashboard() {
                 <Button variant="primary" onClick={() => navigate('/products')}>
                   Generate scene photos
                 </Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Image Optimizer
+                </Text>
+                <Button onClick={() => navigate('/image-optimizer')}>Convert images</Button>
+              </InlineStack>
+              <InlineStack gap="600" wrap>
+                <BlockStack gap="050">
+                  <Text as="span" variant="headingLg">
+                    {imageOptimizerUsage?.totalConverted ?? 0}
+                  </Text>
+                  <Text as="span" tone="subdued" variant="bodySm">
+                    Images converted
+                  </Text>
+                </BlockStack>
+                <BlockStack gap="050">
+                  <Text as="span" variant="headingLg">
+                    {Math.round((imageOptimizerUsage?.totalSavedBytes ?? 0) / 1024)} KB
+                  </Text>
+                  <Text as="span" tone="subdued" variant="bodySm">
+                    Total size saved
+                  </Text>
+                </BlockStack>
+                {imageOptimizerUsage && !imageOptimizerUsage.unlimited ? (
+                  <BlockStack gap="050">
+                    <Text as="span" variant="headingLg">
+                      {imageOptimizerUsage.remaining}/{imageOptimizerUsage.dailyLimit}
+                    </Text>
+                    <Text as="span" tone="subdued" variant="bodySm">
+                      Free conversions left today
+                    </Text>
+                  </BlockStack>
+                ) : null}
               </InlineStack>
             </BlockStack>
           </Card>

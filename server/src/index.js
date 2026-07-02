@@ -3,6 +3,7 @@ import { initSentry } from './lib/sentry.js';
 import { logger } from './lib/logger.js';
 import { createApp } from './app.js';
 import { jobWorker } from './services/jobWorker.js';
+import { imageOptimizerWorker } from './services/imageOptimizerWorker.js';
 
 initSentry();
 
@@ -18,5 +19,11 @@ app.listen(env.PORT, async () => {
     await jobWorker.resumeFromFirestore();
   } catch (error) {
     logger.error({ err: error }, 'Failed to resume in-flight jobs from Firestore at boot');
+  }
+
+  try {
+    await imageOptimizerWorker.resumeFromFirestore();
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to resume in-flight conversion jobs from Firestore at boot');
   }
 });

@@ -19,6 +19,7 @@ const CREDIT_PACKS = {
 };
 
 const UNLIMITED_PLAN_NAME = 'unlimited';
+const IMAGE_OPTIMIZER_ADDON_PLAN_NAME = 'image_optimizer_addon';
 
 // POST /api/billing/purchase — returns a confirmationUrl the merchant is redirected to. Nothing
 // is credited here; that only happens once Shopify confirms the charge (see reconcileBillingState).
@@ -39,6 +40,20 @@ export async function createSubscription({ session, returnUrl, isTest = false })
   const { confirmationUrl } = await shopify.api.billing.request({
     session,
     plan: UNLIMITED_PLAN_NAME,
+    isTest,
+    returnUrl,
+    returnObject: true,
+  });
+  return confirmationUrl;
+}
+
+// POST /api/image-optimizer/billing/subscribe — separate $2.99/mo add-on, independent of the
+// generation-credits plan above. trialDays lives on the static BILLING_PLANS config entry itself
+// (config/shopify.js), not passed here.
+export async function createImageOptimizerSubscription({ session, returnUrl, isTest = false }) {
+  const { confirmationUrl } = await shopify.api.billing.request({
+    session,
+    plan: IMAGE_OPTIMIZER_ADDON_PLAN_NAME,
     isTest,
     returnUrl,
     returnObject: true,
@@ -81,10 +96,25 @@ export async function reconcileBillingState({ session, isTest = false }) {
     await shopsRepo.updatePlan(session.shop, 'unlimited');
   }
 
-  return { creditedPacks, unlimited: Boolean(activeSubscription) };
+  const activeImageOptimizerAddon = appSubscriptions.find(
+    (sub) => sub.status === 'ACTIVE' && sub.name === IMAGE_OPTIMIZER_ADDON_PLAN_NAME,
+  );
+  if (activeImageOptimizerAddon) {
+    await shopsRepo.updateImageOptimizerAddon(session.shop, true);
+  }
+
+  return {
+    creditedPacks,
+    unlimited: Boolean(activeSubscription),
+    imageOptimizerAddon: Boolean(activeImageOptimizerAddon),
+  };
 }
 
-export async function cancelSubscription({ session, subscriptionId, isTest = false }) {
+export async function cancelSubscription({ session, subscriptionId, planName, isTest = false }) {
   await shopify.api.billing.cancel({ session, subscriptionId, isTest });
-  await shopsRepo.updatePlan(session.shop, 'free');
+  if (planName === IMAGE_OPTIMIZER_ADDON_PLAN_NAME) {
+    await shopsRepo.updateImageOptimizerAddon(session.shop, false);
+  } else {
+    await shopsRepo.updatePlan(session.shop, 'free');
+  }
 }

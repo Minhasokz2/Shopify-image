@@ -37,7 +37,35 @@ async function request(path, { method = 'GET', body, ...rest } = {}) {
   return response.json();
 }
 
+// Multipart upload (Image Optimizer's "upload a file" path) needs its own path through fetch:
+// FormData must NOT be JSON.stringify'd, and the browser sets its own multipart Content-Type
+// (with boundary) automatically — setting one manually here would break the boundary.
+async function postFormData(path, formData) {
+  const token = await getSessionToken();
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data?.error) message = data.error;
+    } catch {
+      // response wasn't JSON — keep the generic message
+    }
+    const error = new Error(message);
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export const apiClient = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body }),
+  postFormData,
 };

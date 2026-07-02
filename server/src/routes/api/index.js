@@ -13,6 +13,7 @@ import subscriptionRouter from './subscription.js';
 import brandStyleRouter from './brandStyle.js';
 import referralsRouter from './referrals.js';
 import googleAuthRouter from './googleAuth.js';
+import imageOptimizerRouter from './imageOptimizer.js';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use(subscriptionRouter);
 router.use(brandStyleRouter);
 router.use(referralsRouter);
 router.use(googleAuthRouter);
+router.use(imageOptimizerRouter);
 
 export default router;

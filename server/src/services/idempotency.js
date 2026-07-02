@@ -45,6 +45,45 @@ export async function claimJobCreation({ shopDomain, idempotencyKey, jobId, jobD
   });
 }
 
+// Same pattern as claimJobCreation above, targeting conversion_jobs instead of jobs — kept as a
+// separate function rather than parameterizing claimJobCreation's collection, since jobData's
+// shape (status enum, variations, creditsCharged) is specific to the generation pipeline and
+// doesn't apply to a conversion job's fields.
+export async function claimConversionJobCreation({ shopDomain, idempotencyKey, jobId, jobData }) {
+  const claimRef = firestore.collection(KEYS_COLLECTION).doc(`${shopDomain}:${idempotencyKey}`);
+  const jobRef = firestore.collection('conversion_jobs').doc(jobId);
+
+  return firestore.runTransaction(async (tx) => {
+    const claimDoc = await tx.get(claimRef);
+    if (claimDoc.exists) {
+      return { created: false, jobId: claimDoc.data().jobId };
+    }
+
+    tx.set(claimRef, {
+      jobId,
+      shopDomain,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(jobRef, {
+      ...jobData,
+      shopDomain,
+      status: 'queued',
+      outputAssets: [],
+      originalBytes: null,
+      savedBytes: null,
+      cloudinaryPublicId: null,
+      backupExpiry: null,
+      errorMessage: null,
+      completedAt: null,
+      idempotencyKey,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { created: true, jobId };
+  });
+}
+
 // Publish idempotency is keyed on the job itself (jobId + "already published"), not a separate
 // client-supplied key — a job can only ever be published once, full stop.
 //
