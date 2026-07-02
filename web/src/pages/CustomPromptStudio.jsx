@@ -19,10 +19,12 @@ import {
   Box,
   EmptyState,
 } from '@shopify/polaris';
+import { ImagesIcon, EditIcon, MagicIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 const MAX_IMAGES = 6;
 const NUM_IMAGES_OPTIONS = [1, 2, 3, 4];
@@ -161,32 +163,42 @@ export default function CustomPromptStudio() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                1. Select reference images ({selectedImageUrls.size}/{MAX_IMAGES})
-              </Text>
+              <SectionHeading icon={ImagesIcon}>
+                {`1. Select reference images (${selectedImageUrls.size}/${MAX_IMAGES})`}
+              </SectionHeading>
               {availableImages.length === 0 ? (
                 <EmptyState heading="No images available" image="">
                   <p>The selected product(s) have no images.</p>
                 </EmptyState>
               ) : (
                 <InlineStack gap="300" wrap>
-                  {availableImages.map(({ url, productTitle }) => (
-                    <Box key={url} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
-                      <BlockStack gap="150" inlineAlign="center">
-                        <Checkbox
-                          label={`Select image from ${productTitle}`}
-                          labelHidden
-                          checked={selectedImageUrls.has(url)}
-                          disabled={!selectedImageUrls.has(url) && selectedImageUrls.size >= MAX_IMAGES}
-                          onChange={() => toggleImage(url)}
-                        />
-                        <Thumbnail source={url} alt={productTitle} size="large" />
-                        <Text as="span" variant="bodySm" tone="subdued">
-                          {productTitle}
-                        </Text>
-                      </BlockStack>
-                    </Box>
-                  ))}
+                  {availableImages.map(({ url, productTitle }) => {
+                    const isSelected = selectedImageUrls.has(url);
+                    return (
+                      <Box
+                        key={url}
+                        padding="200"
+                        borderWidth={isSelected ? '050' : '025'}
+                        borderColor={isSelected ? 'border-emphasis' : 'border'}
+                        borderRadius="200"
+                        background={isSelected ? 'bg-surface-selected' : undefined}
+                      >
+                        <BlockStack gap="150" inlineAlign="center">
+                          <Checkbox
+                            label={`Select image from ${productTitle}`}
+                            labelHidden
+                            checked={isSelected}
+                            disabled={!isSelected && selectedImageUrls.size >= MAX_IMAGES}
+                            onChange={() => toggleImage(url)}
+                          />
+                          <Thumbnail source={url} alt={productTitle} size="large" />
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {productTitle}
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    );
+                  })}
                 </InlineStack>
               )}
             </BlockStack>
@@ -196,9 +208,7 @@ export default function CustomPromptStudio() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                2. Write your prompt
-              </Text>
+              <SectionHeading icon={EditIcon}>2. Write your prompt</SectionHeading>
               <TextField
                 label="Prompt"
                 labelHidden
@@ -215,9 +225,7 @@ export default function CustomPromptStudio() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                3. Choose a model and how many images
-              </Text>
+              <SectionHeading icon={MagicIcon}>3. Choose a model and how many images</SectionHeading>
               {modelsLoading ? (
                 <InlineStack align="center">
                   <Spinner accessibilityLabel="Loading models" size="small" />

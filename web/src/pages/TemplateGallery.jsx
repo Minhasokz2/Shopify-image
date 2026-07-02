@@ -15,9 +15,11 @@ import {
   Button,
   Box,
 } from '@shopify/polaris';
+import { PersonIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 // UGC and video are temporarily hidden from merchants — their providers (OpenAI, WaveSpeed)
 // aren't configured with real credentials yet. Re-add { id: 'ugc', content: 'UGC' } and
@@ -180,29 +182,33 @@ export default function TemplateGallery() {
           <Box padding="400">
             {activeCategory === 'tryon' ? (
               <BlockStack gap="300">
-                <Text as="h3" fontWeight="medium">
+                <SectionHeading icon={PersonIcon} variant="headingSm">
                   Virtual Try-On
-                </Text>
-                <Text as="p" tone="subdued">
-                  Upload a photo of a person and pick a garment product image — see the garment
-                  fitted onto the person, powered by FASHN.
-                </Text>
-                {tryOnModel ? (
-                  <InlineStack gap="150">
-                    <Badge tone={tryOnCanAfford ? undefined : 'critical'}>
-                      {`${tryOnModel.creditCost} credit${tryOnModel.creditCost === 1 ? '' : 's'}`}
-                    </Badge>
-                  </InlineStack>
-                ) : null}
-                {!tryOnCanAfford ? (
-                  <Text as="span" variant="bodySm" tone="critical">
-                    Not enough credits ({balance} left)
-                  </Text>
-                ) : null}
-                <Box>
-                  <Button onClick={handleContinueToTryOn} disabled={!tryOnCanAfford}>
-                    {!tryOnCanAfford ? 'Top up to use' : 'Open Virtual Try-On'}
-                  </Button>
+                </SectionHeading>
+                <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                  <BlockStack gap="300">
+                    <Text as="p" tone="subdued">
+                      Upload a photo of a person and pick a garment product image — see the garment
+                      fitted onto the person, powered by FASHN.
+                    </Text>
+                    {tryOnModel ? (
+                      <InlineStack gap="150">
+                        <Badge tone={tryOnCanAfford ? undefined : 'critical'}>
+                          {`${tryOnModel.creditCost} credit${tryOnModel.creditCost === 1 ? '' : 's'}`}
+                        </Badge>
+                      </InlineStack>
+                    ) : null}
+                    {!tryOnCanAfford ? (
+                      <Text as="span" variant="bodySm" tone="critical">
+                        Not enough credits ({balance} left)
+                      </Text>
+                    ) : null}
+                    <Box>
+                      <Button variant="primary" onClick={handleContinueToTryOn} disabled={!tryOnCanAfford}>
+                        {!tryOnCanAfford ? 'Top up to use' : 'Open Virtual Try-On'}
+                      </Button>
+                    </Box>
+                  </BlockStack>
                 </Box>
               </BlockStack>
             ) : isLoading ? (

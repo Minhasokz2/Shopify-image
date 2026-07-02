@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { BlockStack, Badge, Banner, Button, Card, InlineStack, Layout, Page, ProgressBar, Spinner, Text, Thumbnail } from '@shopify/polaris';
+import { BlockStack, Badge, Banner, Button, Card, InlineStack, Layout, Page, ProgressBar, Spinner, Text, Thumbnail, Box } from '@shopify/polaris';
+import { ClockIcon } from '@shopify/polaris-icons';
 import { useConversionBatchPolling } from '../hooks/useImageOptimizer.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { downloadFile } from '../utils/download.js';
 
 const STATUS_TONE = {
@@ -22,7 +24,7 @@ function ConversionJobRow({ job }) {
   const primaryOutput = job.outputAssets?.[0];
 
   return (
-    <Card padding="300">
+    <Box padding="300" borderWidth="025" borderColor="border" borderRadius="200" background="bg-surface">
       <InlineStack align="space-between" blockAlign="center" wrap={false}>
         <InlineStack gap="300" blockAlign="center" wrap={false}>
           <Thumbnail source={primaryOutput?.url || job.inputUrl} alt="" size="small" />
@@ -56,7 +58,7 @@ function ConversionJobRow({ job }) {
           </InlineStack>
         ) : null}
       </InlineStack>
-    </Card>
+    </Box>
   );
 }
 
@@ -102,20 +104,20 @@ export default function ImageOptimizerBatch() {
     <Page
       title="Converting images"
       backAction={{ content: 'Conversion History', onAction: () => navigate('/image-optimizer/history') }}
-      primaryAction={{ content: 'Conversion history', onAction: () => navigate('/image-optimizer/history') }}
+      primaryAction={{ content: 'Conversion history', icon: ClockIcon, onAction: () => navigate('/image-optimizer/history') }}
     >
       <Layout>
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
               <InlineStack align="space-between">
-                <Text as="h2" variant="headingMd">
+                <SectionHeading icon={ClockIcon}>
                   {batch.status === 'processing'
                     ? 'Converting…'
                     : batch.status === 'complete'
                       ? 'All conversions complete'
                       : 'Finished with some failures'}
-                </Text>
+                </SectionHeading>
                 <Text as="span" tone="subdued">
                   {batch.completedCount}/{batch.totalCount} done
                   {batch.failedCount > 0 ? ` · ${batch.failedCount} failed` : ''}

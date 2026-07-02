@@ -1,7 +1,23 @@
 import { useEffect, useState } from 'react';
-import { BlockStack, Banner, Box, Button, Card, InlineStack, Layout, Page, Scrollable, Text, TextField } from '@shopify/polaris';
+import {
+  BlockStack,
+  Badge,
+  Banner,
+  Box,
+  Button,
+  Card,
+  InlineStack,
+  Layout,
+  Page,
+  Scrollable,
+  Spinner,
+  Text,
+  TextField,
+} from '@shopify/polaris';
+import { CreditCardIcon, CashDollarIcon } from '@shopify/polaris-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { apiClient } from '../api/client.js';
 
 const PACKS = [
@@ -134,13 +150,9 @@ export default function Billing() {
         <Layout.Section>
           <Card>
             <InlineStack align="space-between" blockAlign="center" wrap>
-              <Text as="h2" variant="headingMd">
-                Current plan
-              </Text>
+              <SectionHeading icon={CreditCardIcon}>Current plan</SectionHeading>
               {creditsLoading ? (
-                <Text as="span" tone="subdued">
-                  Loading…
-                </Text>
+                <Spinner size="small" accessibilityLabel="Loading current plan" />
               ) : (
                 <InlineStack gap="300" blockAlign="center">
                   <Text as="span">
@@ -175,40 +187,52 @@ export default function Billing() {
             <InlineStack gap="400" wrap>
               {PACKS.map((pack) => {
                 const isCurrentPlan = credits?.plan === pack.id;
+                const planContent = (
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h3" variant="headingSm">
+                        {pack.name}
+                      </Text>
+                      {isCurrentPlan ? <Badge tone="success">Current plan</Badge> : null}
+                    </InlineStack>
+                    <InlineStack gap="100" blockAlign="baseline">
+                      <Text as="p" variant="heading2xl">
+                        {pack.priceLabel}
+                      </Text>
+                      <Text as="span" tone="subdued">
+                        /month
+                      </Text>
+                    </InlineStack>
+                    <Text as="p" tone="subdued">
+                      {pack.credits} credits/month
+                    </Text>
+                    <BlockStack gap="100">
+                      {pack.benefits.map((benefit) => (
+                        <Text as="p" variant="bodySm" key={benefit}>
+                          {`✓ ${benefit}`}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                    <Button
+                      variant="primary"
+                      disabled={isCurrentPlan}
+                      onClick={() => handlePurchase(pack.id)}
+                      loading={pendingPackId === pack.id}
+                    >
+                      {isCurrentPlan ? 'Current plan' : 'Subscribe'}
+                    </Button>
+                  </BlockStack>
+                );
                 return (
                   <div key={pack.id} style={{ flex: '1 1 240px', minWidth: 240 }}>
-                    <Card>
-                      <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">
-                          {pack.name}
-                        </Text>
-                        <InlineStack gap="100" blockAlign="baseline">
-                          <Text as="p" variant="heading2xl">
-                            {pack.priceLabel}
-                          </Text>
-                          <Text as="span" tone="subdued">
-                            /month
-                          </Text>
-                        </InlineStack>
-                        <Text as="p" tone="subdued">
-                          {pack.credits} credits/month
-                        </Text>
-                        <BlockStack gap="100">
-                          {pack.benefits.map((benefit) => (
-                            <Text as="p" variant="bodySm" key={benefit}>
-                              {`✓ ${benefit}`}
-                            </Text>
-                          ))}
-                        </BlockStack>
-                        <Button
-                          variant="primary"
-                          disabled={isCurrentPlan}
-                          onClick={() => handlePurchase(pack.id)}
-                          loading={pendingPackId === pack.id}
-                        >
-                          {isCurrentPlan ? 'Current plan' : 'Subscribe'}
-                        </Button>
-                      </BlockStack>
+                    <Card padding={isCurrentPlan ? '0' : undefined}>
+                      {isCurrentPlan ? (
+                        <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                          {planContent}
+                        </Box>
+                      ) : (
+                        planContent
+                      )}
                     </Card>
                   </div>
                 );
@@ -220,9 +244,9 @@ export default function Billing() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h3" variant="headingSm">
+              <SectionHeading icon={CashDollarIcon} variant="headingSm">
                 Buy a custom amount
-              </Text>
+              </SectionHeading>
               <Text as="p" tone="subdued">
                 Enter any amount between $5 and $2,000 to see how many credits — and how many
                 images per model — that gets you.
@@ -240,9 +264,12 @@ export default function Billing() {
               />
 
               {estimateLoading ? (
-                <Text as="span" tone="subdued">
-                  Calculating…
-                </Text>
+                <InlineStack gap="200" blockAlign="center">
+                  <Spinner size="small" />
+                  <Text as="span" tone="subdued">
+                    Calculating…
+                  </Text>
+                </InlineStack>
               ) : estimateError ? (
                 <Text as="span" tone="critical">
                   {estimateError}

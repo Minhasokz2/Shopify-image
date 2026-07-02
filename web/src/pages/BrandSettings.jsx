@@ -1,6 +1,21 @@
 import { useEffect, useState } from 'react';
-import { BlockStack, Banner, Button, Card, InlineStack, Layout, Page, Spinner, Text, TextField } from '@shopify/polaris';
+import {
+  BlockStack,
+  Banner,
+  Box,
+  Button,
+  Card,
+  EmptyState,
+  InlineStack,
+  Layout,
+  Page,
+  Spinner,
+  Text,
+  TextField,
+} from '@shopify/polaris';
+import { WandIcon, PaintBrushFlatIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 const MIN_URLS = 3;
 const MAX_URLS = 5;
@@ -74,35 +89,35 @@ export default function BrandSettings() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Extract your brand style
-              </Text>
+              <SectionHeading icon={WandIcon}>Extract your brand style</SectionHeading>
               <Text as="p" tone="subdued">
                 Add 3-5 of your product page URLs. MotionArt reads them and extracts a color palette and tone of
                 voice that gets applied to every generation.
               </Text>
 
-              <BlockStack gap="200">
-                {urls.map((url, index) => (
-                  <InlineStack key={index} gap="200" blockAlign="end" wrap={false}>
-                    <div style={{ flexGrow: 1 }}>
-                      <TextField
-                        label={`Product page URL ${index + 1}`}
-                        labelHidden={index !== 0}
-                        value={url}
-                        onChange={(value) => handleUrlChange(index, value)}
-                        autoComplete="off"
-                        placeholder="https://yourstore.com/products/example"
-                      />
-                    </div>
-                    {urls.length > MIN_URLS && (
-                      <Button onClick={() => handleRemoveUrl(index)} accessibilityLabel="Remove URL">
-                        Remove
-                      </Button>
-                    )}
-                  </InlineStack>
-                ))}
-              </BlockStack>
+              <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
+                <BlockStack gap="200">
+                  {urls.map((url, index) => (
+                    <InlineStack key={index} gap="200" blockAlign="end" wrap={false}>
+                      <div style={{ flexGrow: 1 }}>
+                        <TextField
+                          label={`Product page URL ${index + 1}`}
+                          labelHidden={index !== 0}
+                          value={url}
+                          onChange={(value) => handleUrlChange(index, value)}
+                          autoComplete="off"
+                          placeholder="https://yourstore.com/products/example"
+                        />
+                      </div>
+                      {urls.length > MIN_URLS && (
+                        <Button onClick={() => handleRemoveUrl(index)} accessibilityLabel="Remove URL">
+                          Remove
+                        </Button>
+                      )}
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+              </Box>
 
               <InlineStack gap="200">
                 {urls.length < MAX_URLS && <Button onClick={handleAddUrl}>Add another URL</Button>}
@@ -126,46 +141,55 @@ export default function BrandSettings() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Current brand style
-              </Text>
+              <SectionHeading icon={PaintBrushFlatIcon}>Current brand style</SectionHeading>
               {loadingProfile ? (
-                <Spinner size="small" />
+                <Box padding="400">
+                  <InlineStack align="center">
+                    <Spinner accessibilityLabel="Loading brand style" size="small" />
+                  </InlineStack>
+                </Box>
               ) : !profile ? (
-                <Text as="p" tone="subdued">
-                  No brand style extracted yet.
-                </Text>
+                <EmptyState
+                  heading="No brand style extracted yet"
+                  image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
+                >
+                  <p>Add your product page URLs above and extract a style to see it here.</p>
+                </EmptyState>
               ) : (
                 <BlockStack gap="300">
-                  <BlockStack gap="150">
-                    <Text as="h3" variant="headingSm">
-                      Palette
-                    </Text>
-                    <InlineStack gap="200">
-                      {(profile.palette ?? []).map((hex) => (
-                        <div key={hex} style={{ textAlign: 'center' }}>
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 6,
-                              backgroundColor: hex,
-                              border: '1px solid rgba(0,0,0,0.1)',
-                            }}
-                          />
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {hex}
-                          </Text>
-                        </div>
-                      ))}
-                    </InlineStack>
-                  </BlockStack>
-                  <BlockStack gap="150">
-                    <Text as="h3" variant="headingSm">
-                      Tone
-                    </Text>
-                    <Text as="p">{profile.tone}</Text>
-                  </BlockStack>
+                  <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
+                    <BlockStack gap="150">
+                      <Text as="h3" variant="headingSm">
+                        Palette
+                      </Text>
+                      <InlineStack gap="200">
+                        {(profile.palette ?? []).map((hex) => (
+                          <div key={hex} style={{ textAlign: 'center' }}>
+                            <div
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 6,
+                                backgroundColor: hex,
+                                border: '1px solid rgba(0,0,0,0.1)',
+                              }}
+                            />
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {hex}
+                            </Text>
+                          </div>
+                        ))}
+                      </InlineStack>
+                    </BlockStack>
+                  </Box>
+                  <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
+                    <BlockStack gap="150">
+                      <Text as="h3" variant="headingSm">
+                        Tone
+                      </Text>
+                      <Text as="p">{profile.tone}</Text>
+                    </BlockStack>
+                  </Box>
                   {profile.extractedAt && (
                     <Text as="span" variant="bodySm" tone="subdued">
                       Last extracted {new Date(profile.extractedAt).toLocaleString()}

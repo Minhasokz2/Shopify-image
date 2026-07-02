@@ -1,5 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box } from '@shopify/polaris';
+import { ImagesIcon, EditIcon } from '@shopify/polaris-icons';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 // The fork between the two ways to generate: a fixed-prompt template (fast, admin-curated) or a
 // merchant-written custom prompt against an admin-allowed model (flexible, scene photos only).
@@ -33,20 +35,22 @@ export default function GenerateMethod() {
             <Box minWidth="280px" maxWidth="360px">
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Use a template
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Pick from admin-curated scene templates. Fastest way to generate — one click per
-                    template.
-                  </Text>
-                  <Button
-                    variant="primary"
-                    disabled={selectedProducts.length === 0}
-                    onClick={() => navigate('/templates', { state: { selectedProducts } })}
-                  >
-                    Browse templates
-                  </Button>
+                  <SectionHeading icon={ImagesIcon}>Use a template</SectionHeading>
+                  <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                    <BlockStack gap="300">
+                      <Text as="p" tone="subdued">
+                        Pick from admin-curated scene templates. Fastest way to generate — one click per
+                        template.
+                      </Text>
+                      <Button
+                        variant="primary"
+                        disabled={selectedProducts.length === 0}
+                        onClick={() => navigate('/templates', { state: { selectedProducts } })}
+                      >
+                        Browse templates
+                      </Button>
+                    </BlockStack>
+                  </Box>
                 </BlockStack>
               </Card>
             </Box>
@@ -54,9 +58,7 @@ export default function GenerateMethod() {
             <Box minWidth="280px" maxWidth="360px">
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Write a custom prompt
-                  </Text>
+                  <SectionHeading icon={EditIcon}>Write a custom prompt</SectionHeading>
                   <Text as="p" tone="subdued">
                     Select one or more product images, write your own prompt, and pick which AI model generates it.
                     Scene photos only, for now.

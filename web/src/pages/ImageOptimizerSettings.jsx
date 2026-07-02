@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { BlockStack, Banner, Button, Card, InlineStack, Layout, Page, Text } from '@shopify/polaris';
+import { BlockStack, Banner, Box, Button, Card, InlineStack, Layout, Page, ProgressBar, Text } from '@shopify/polaris';
+import { CreditCardIcon, ImagesIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 
 // Shopify's billing confirmation page must break out of the embedded admin iframe — same
@@ -48,9 +50,7 @@ export default function ImageOptimizerSettings() {
           <Card>
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingMd">
-                  Current plan
-                </Text>
+                <SectionHeading icon={CreditCardIcon}>Current plan</SectionHeading>
                 {isLoading ? (
                   <Text as="span" tone="subdued">
                     Loading…
@@ -60,9 +60,16 @@ export default function ImageOptimizerSettings() {
                 )}
               </InlineStack>
               {!isLoading && !usage?.unlimited ? (
-                <Text as="p" tone="subdued">
-                  {usage?.dailyUsed ?? 0} of {usage?.dailyLimit ?? 10} free conversions used today.
-                </Text>
+                <BlockStack gap="150">
+                  <Text as="p" tone="subdued">
+                    {usage?.dailyUsed ?? 0} of {usage?.dailyLimit ?? 10} free conversions used today.
+                  </Text>
+                  <ProgressBar
+                    progress={((usage?.remaining ?? 0) / (usage?.dailyLimit || 10)) * 100}
+                    size="small"
+                    tone={(usage?.remaining ?? 0) === 0 ? 'critical' : 'primary'}
+                  />
+                </BlockStack>
               ) : null}
             </BlockStack>
           </Card>
@@ -71,9 +78,7 @@ export default function ImageOptimizerSettings() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Usage
-              </Text>
+              <SectionHeading icon={ImagesIcon}>Usage</SectionHeading>
               <InlineStack gap="600" wrap>
                 <BlockStack gap="050">
                   <Text as="span" variant="heading2xl">
@@ -99,22 +104,24 @@ export default function ImageOptimizerSettings() {
         {!usage?.unlimited ? (
           <Layout.Section>
             <Card>
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <Text as="h3" variant="headingSm">
-                    Compress Image unlimited
-                  </Text>
-                  <Text as="p" variant="heading2xl">
-                    $2.99/mo
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Unlimited image conversions, no daily cap. 7-day free trial.
-                  </Text>
-                </BlockStack>
-                <Button variant="primary" onClick={handleSubscribe} loading={subscribeMutation.isPending}>
-                  Start free trial
-                </Button>
-              </InlineStack>
+              <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                  <BlockStack gap="100">
+                    <Text as="h3" variant="headingSm">
+                      Compress Image unlimited
+                    </Text>
+                    <Text as="p" variant="heading2xl">
+                      $2.99/mo
+                    </Text>
+                    <Text as="p" tone="subdued">
+                      Unlimited image conversions, no daily cap. 7-day free trial.
+                    </Text>
+                  </BlockStack>
+                  <Button variant="primary" icon={CreditCardIcon} onClick={handleSubscribe} loading={subscribeMutation.isPending}>
+                    Start free trial
+                  </Button>
+                </InlineStack>
+              </Box>
             </Card>
           </Layout.Section>
         ) : (

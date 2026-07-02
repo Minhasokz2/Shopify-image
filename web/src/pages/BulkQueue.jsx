@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   BlockStack,
   Banner,
+  Box,
   Button,
   Card,
   EmptyState,
@@ -13,9 +14,11 @@ import {
   Spinner,
   Text,
 } from '@shopify/polaris';
+import { ClipboardChecklistIcon, ListBulletedIcon } from '@shopify/polaris-icons';
 import { useBatchPolling } from '../hooks/useJobPolling.js';
 import { apiClient } from '../api/client.js';
 import { JobProgressCard } from '../components/JobProgressCard.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 
 export default function BulkQueue() {
   const { batchId } = useParams();
@@ -99,10 +102,12 @@ function BatchTracker({ batchId }) {
         <Layout>
           <Layout.Section>
             <Card>
-              <InlineStack gap="200" blockAlign="center">
-                <Spinner size="small" />
-                <Text as="span">Loading batch…</Text>
-              </InlineStack>
+              <Box padding="400">
+                <InlineStack align="center" gap="200" blockAlign="center">
+                  <Spinner accessibilityLabel="Loading batch" size="small" />
+                  <Text as="span">Loading batch…</Text>
+                </InlineStack>
+              </Box>
             </Card>
           </Layout.Section>
         </Layout>
@@ -134,14 +139,14 @@ function BatchTracker({ batchId }) {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <InlineStack align="space-between">
-                <Text as="h2" variant="headingMd">
+              <InlineStack align="space-between" blockAlign="center">
+                <SectionHeading icon={ListBulletedIcon}>
                   {batch.status === 'processing'
                     ? 'Generating…'
                     : batch.status === 'complete'
                       ? 'Batch complete'
                       : 'Batch finished with some failures'}
-                </Text>
+                </SectionHeading>
                 <Text as="span" tone="subdued">
                   {batch.completedCount}/{batch.totalCount} done
                   {batch.failedCount > 0 ? ` · ${batch.failedCount} failed` : ''}
@@ -172,9 +177,9 @@ function BatchTracker({ batchId }) {
             <Card>
               <BlockStack gap="200">
                 <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm">
+                  <SectionHeading icon={ClipboardChecklistIcon} variant="headingSm">
                     Approve &amp; publish
-                  </Text>
+                  </SectionHeading>
                   <ButtonGroupInline
                     onSelectAll={handleSelectAll}
                     onClear={handleClearSelection}

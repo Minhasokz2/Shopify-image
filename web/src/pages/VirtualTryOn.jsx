@@ -19,8 +19,10 @@ import {
   Box,
   EmptyState,
 } from '@shopify/polaris';
+import { PersonIcon, ImageIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
 
@@ -209,9 +211,7 @@ export default function VirtualTryOn() {
             <Box minWidth="300px" width="100%">
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Person
-                  </Text>
+                  <SectionHeading icon={PersonIcon}>Person</SectionHeading>
                   {personImageUrl ? (
                     <InlineStack gap="300" blockAlign="center">
                       <Thumbnail source={personImageUrl} alt="Person photo" size="large" />
@@ -237,9 +237,7 @@ export default function VirtualTryOn() {
             <Box minWidth="300px" width="100%">
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Garment
-                  </Text>
+                  <SectionHeading icon={ImageIcon}>Garment</SectionHeading>
                   {garmentImageUrl ? (
                     <InlineStack gap="300" blockAlign="center">
                       <Thumbnail source={garmentImageUrl} alt="Garment photo" size="large" />
