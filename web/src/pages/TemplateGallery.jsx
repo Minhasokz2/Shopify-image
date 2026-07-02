@@ -255,8 +255,24 @@ export default function TemplateGallery() {
                               </div>
                             </Box>
                           )}
-                          <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                            <Badge tone={canAfford ? undefined : 'critical'}>{`${template.creditCost} credits`}</Badge>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              padding: '3px 10px',
+                              borderRadius: 999,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#fff',
+                              // A fixed, opaque dark pill (not a Polaris Badge tone) — this sits on
+                              // top of an arbitrary admin-uploaded photo, so it needs to read
+                              // clearly regardless of how light/busy that image is, rather than
+                              // risk blending into a similarly light Badge-tone background.
+                              backgroundColor: canAfford ? 'rgba(17, 17, 17, 0.85)' : 'rgba(185, 28, 28, 0.9)',
+                            }}
+                          >
+                            {`${template.creditCost} credits`}
                           </div>
                         </div>
 
