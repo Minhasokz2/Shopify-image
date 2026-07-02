@@ -118,3 +118,7 @@ export async function generateVideo({ model, cleanImageUrl, motionPrompt, aspect
   });
   return result.data.video.url;
 }
+
+// Re-exported so other service modules (e.g. aiFeatureModels.js) reuse this already-configured
+// client instead of importing @fal-ai/client fresh and calling fal.config() a second time.
+export { fal };
