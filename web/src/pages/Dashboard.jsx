@@ -7,16 +7,23 @@ import {
   Card,
   BlockStack,
   InlineStack,
+  InlineGrid,
   Text,
   Button,
+  ButtonGroup,
   Banner,
   Spinner,
   EmptyState,
   Badge,
   Box,
+  Icon,
+  ProgressBar,
+  Thumbnail,
 } from '@shopify/polaris';
+import { ProductIcon, PersonIcon, CreditCardIcon, ExitIcon, WandIcon, ImagesIcon, ClockIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 
 const STATUS_TONE = {
@@ -41,10 +48,35 @@ function useGoogleAccount() {
   });
 }
 
+function SectionHeading({ icon, children }) {
+  return (
+    <InlineStack gap="150" blockAlign="center">
+      <Icon source={icon} />
+      <Text as="h2" variant="headingMd">
+        {children}
+      </Text>
+    </InlineStack>
+  );
+}
+
+function StatBlock({ value, label }) {
+  return (
+    <BlockStack gap="050">
+      <Text as="span" variant="headingLg">
+        {value}
+      </Text>
+      <Text as="span" tone="subdued" variant="bodySm">
+        {label}
+      </Text>
+    </BlockStack>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useRecentJobs();
   const { data: googleAccount } = useGoogleAccount();
+  const { data: creditData } = useCreditBalance();
   const { data: imageOptimizerUsage } = useImageOptimizerUsage();
   const jobs = data?.jobs ?? [];
   const [signOutError, setSignOutError] = useState(null);
@@ -59,28 +91,56 @@ export default function Dashboard() {
     onError: (err) => setSignOutError(err.message || 'Failed to sign out.'),
   });
 
+  const outOfCredits = creditData && creditData.creditBalance <= 0;
+  const lowOnCredits = creditData && !outOfCredits && creditData.plan === 'free' && creditData.creditBalance <= 2;
+
+  const conversionQuotaPct =
+    imageOptimizerUsage && !imageOptimizerUsage.unlimited && imageOptimizerUsage.dailyLimit > 0
+      ? (imageOptimizerUsage.remaining / imageOptimizerUsage.dailyLimit) * 100
+      : null;
+
   return (
     <Page
       title="MotionArt"
       subtitle="AI product photos — generated in a click"
-      primaryAction={{ content: 'Pick products', onAction: () => navigate('/products') }}
+      primaryAction={{ content: 'Pick products', icon: ProductIcon, onAction: () => navigate('/products') }}
     >
       <Layout>
         <Layout.Section>
-          {error ? (
-            <Banner tone="critical" title="Couldn't load your dashboard">
-              <p>{error.message}</p>
-            </Banner>
-          ) : null}
+          <BlockStack gap="300">
+            {error ? (
+              <Banner tone="critical" title="Couldn't load your dashboard">
+                <p>{error.message}</p>
+              </Banner>
+            ) : null}
+            {outOfCredits ? (
+              <Banner
+                tone="critical"
+                title="You're out of credits"
+                action={{ content: 'Upgrade plan', onAction: () => navigate('/billing') }}
+              >
+                <p>Upgrade your plan or add more credits to keep generating photos.</p>
+              </Banner>
+            ) : lowOnCredits ? (
+              <Banner
+                tone="warning"
+                title="Running low on credits"
+                action={{ content: 'View plans', onAction: () => navigate('/billing') }}
+              >
+                <p>
+                  You have {creditData.creditBalance} credit{creditData.creditBalance === 1 ? '' : 's'} left on the
+                  free plan.
+                </p>
+              </Banner>
+            ) : null}
+          </BlockStack>
         </Layout.Section>
 
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingMd">
-                  Account status
-                </Text>
+                <SectionHeading icon={PersonIcon}>Account status</SectionHeading>
                 <CreditBalanceBadge />
               </InlineStack>
               {googleAccount?.googleEmail ? (
@@ -93,12 +153,14 @@ export default function Dashboard() {
                   {signOutError}
                 </Banner>
               ) : null}
-              <InlineStack gap="200">
-                <Button onClick={() => navigate('/billing')}>Manage billing</Button>
-                <Button onClick={() => signOutMutation.mutate()} loading={signOutMutation.isPending}>
+              <ButtonGroup>
+                <Button icon={CreditCardIcon} onClick={() => navigate('/billing')}>
+                  Manage billing
+                </Button>
+                <Button icon={ExitIcon} onClick={() => signOutMutation.mutate()} loading={signOutMutation.isPending}>
                   Sign out
                 </Button>
-              </InlineStack>
+              </ButtonGroup>
             </BlockStack>
           </Card>
         </Layout.Section>
@@ -106,17 +168,25 @@ export default function Dashboard() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Quick generate
-              </Text>
+              <SectionHeading icon={WandIcon}>Quick generate</SectionHeading>
               {/* UGC and video quick-actions are temporarily hidden — their providers (OpenAI,
-                  WaveSpeed) aren't configured with real credentials yet. Re-add
-                  "Generate UGC content" / "Generate video" buttons (same onClick) once they are. */}
-              <InlineStack gap="200">
-                <Button variant="primary" onClick={() => navigate('/products')}>
-                  Generate scene photos
-                </Button>
-              </InlineStack>
+                  WaveSpeed) aren't configured with real credentials yet. Re-add as sibling tiles
+                  inside this same Box once they are. */}
+              <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                  <BlockStack gap="100">
+                    <Text as="h3" variant="headingSm">
+                      Scene photos
+                    </Text>
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      Turn your catalog images into studio-quality product scenes.
+                    </Text>
+                  </BlockStack>
+                  <Button variant="primary" icon={WandIcon} onClick={() => navigate('/products')}>
+                    Generate scene photos
+                  </Button>
+                </InlineStack>
+              </Box>
             </BlockStack>
           </Card>
         </Layout.Section>
@@ -125,39 +195,29 @@ export default function Dashboard() {
           <Card>
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingMd">
-                  Compress Image
-                </Text>
+                <SectionHeading icon={ImagesIcon}>Compress Image</SectionHeading>
                 <Button onClick={() => navigate('/image-optimizer')}>Convert images</Button>
               </InlineStack>
-              <InlineStack gap="600" wrap>
-                <BlockStack gap="050">
-                  <Text as="span" variant="headingLg">
-                    {imageOptimizerUsage?.totalConverted ?? 0}
-                  </Text>
-                  <Text as="span" tone="subdued" variant="bodySm">
-                    Images converted
-                  </Text>
-                </BlockStack>
-                <BlockStack gap="050">
-                  <Text as="span" variant="headingLg">
-                    {Math.round((imageOptimizerUsage?.totalSavedBytes ?? 0) / 1024)} KB
-                  </Text>
-                  <Text as="span" tone="subdued" variant="bodySm">
-                    Total size saved
-                  </Text>
-                </BlockStack>
-                {imageOptimizerUsage && !imageOptimizerUsage.unlimited ? (
-                  <BlockStack gap="050">
-                    <Text as="span" variant="headingLg">
-                      {imageOptimizerUsage.remaining}/{imageOptimizerUsage.dailyLimit}
-                    </Text>
-                    <Text as="span" tone="subdued" variant="bodySm">
-                      Free conversions left today
-                    </Text>
+              <InlineGrid columns={{ xs: 1, sm: conversionQuotaPct !== null ? 3 : 2 }} gap="400">
+                <StatBlock value={imageOptimizerUsage?.totalConverted ?? 0} label="Images converted" />
+                <StatBlock
+                  value={`${Math.round((imageOptimizerUsage?.totalSavedBytes ?? 0) / 1024)} KB`}
+                  label="Total size saved"
+                />
+                {conversionQuotaPct !== null ? (
+                  <BlockStack gap="150">
+                    <StatBlock
+                      value={`${imageOptimizerUsage.remaining}/${imageOptimizerUsage.dailyLimit}`}
+                      label="Free conversions left today"
+                    />
+                    <ProgressBar
+                      progress={conversionQuotaPct}
+                      size="small"
+                      tone={imageOptimizerUsage.remaining === 0 ? 'critical' : 'primary'}
+                    />
                   </BlockStack>
                 ) : null}
-              </InlineStack>
+              </InlineGrid>
             </BlockStack>
           </Card>
         </Layout.Section>
@@ -165,9 +225,14 @@ export default function Dashboard() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Recent jobs
-              </Text>
+              <InlineStack align="space-between" blockAlign="center">
+                <SectionHeading icon={ClockIcon}>Recent jobs</SectionHeading>
+                {jobs.length > 0 ? (
+                  <Button variant="plain" onClick={() => navigate('/history')}>
+                    View all
+                  </Button>
+                ) : null}
+              </InlineStack>
               {isLoading ? (
                 <Box padding="400">
                   <InlineStack align="center">
@@ -185,22 +250,23 @@ export default function Dashboard() {
               ) : (
                 <BlockStack gap="200">
                   {jobs.map((job) => (
-                    <Box
-                      key={job.id}
-                      padding="300"
-                      borderWidth="025"
-                      borderColor="border"
-                      borderRadius="200"
-                    >
-                      <InlineStack align="space-between" blockAlign="center">
-                        <BlockStack gap="050">
-                          <Text as="span" fontWeight="medium">
-                            {job.contentType} · {job.templateId}
-                          </Text>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {new Date(job.createdAt).toLocaleString()}
-                          </Text>
-                        </BlockStack>
+                    <Box key={job.id} padding="300" borderWidth="025" borderColor="border" borderRadius="200">
+                      <InlineStack align="space-between" blockAlign="center" gap="300">
+                        <InlineStack gap="300" blockAlign="center">
+                          <Thumbnail
+                            source={job.variations?.[0]?.url || job.productImageUrl || ''}
+                            alt={`${job.contentType} job`}
+                            size="small"
+                          />
+                          <BlockStack gap="050">
+                            <Text as="span" fontWeight="medium">
+                              {job.contentType} · {job.templateId ?? 'Custom prompt'}
+                            </Text>
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {new Date(job.createdAt).toLocaleString()}
+                            </Text>
+                          </BlockStack>
+                        </InlineStack>
                         <InlineStack gap="200" blockAlign="center">
                           <Badge tone={STATUS_TONE[job.status] ?? 'info'}>{job.status}</Badge>
                           <Button onClick={() => navigate(`/review/${job.id}`)}>View</Button>

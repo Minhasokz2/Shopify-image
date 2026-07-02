@@ -12,6 +12,7 @@
   "dependencies": {
     "@shopify/app-bridge-react": "^4.2.11",
     "@shopify/polaris": "^13.9.5",
+    "@shopify/polaris-icons": "^9.3.1",
     "@tanstack/react-query": "^5.101.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
