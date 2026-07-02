@@ -12,11 +12,13 @@ const STATUS_OPTIONS = [
   { label: 'Failed', value: 'failed' },
 ];
 
+// UGC and video are temporarily hidden from merchants everywhere else (see TemplateGallery.jsx) —
+// no shop can have jobs of those content types today, so the filter options are hidden too rather
+// than offering choices that always return zero results. Re-add once those content types are
+// re-enabled.
 const CONTENT_TYPE_OPTIONS = [
   { label: 'All content types', value: '' },
   { label: 'Scene', value: 'scene' },
-  { label: 'UGC', value: 'ugc' },
-  { label: 'Video', value: 'video' },
 ];
 
 const STATUS_TONE = {

@@ -62,7 +62,7 @@ export default function Dashboard() {
   return (
     <Page
       title="VisualKit"
-      subtitle="AI product photos, UGC, and video — generated in a click"
+      subtitle="AI product photos — generated in a click"
       primaryAction={{ content: 'Pick products', onAction: () => navigate('/products') }}
     >
       <Layout>
@@ -180,7 +180,7 @@ export default function Dashboard() {
                   action={{ content: 'Pick products', onAction: () => navigate('/products') }}
                   image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
                 >
-                  <p>Generate your first AI product photo, UGC image, or video.</p>
+                  <p>Generate your first AI product photo.</p>
                 </EmptyState>
               ) : (
                 <BlockStack gap="200">

@@ -37,7 +37,7 @@ export default function GenerateMethod() {
                     Use a template
                   </Text>
                   <Text as="p" tone="subdued">
-                    Pick from admin-curated scene, UGC, and video templates. Fastest way to generate — one click per
+                    Pick from admin-curated scene templates. Fastest way to generate — one click per
                     template.
                   </Text>
                   <Button
