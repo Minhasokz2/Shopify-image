@@ -8,6 +8,7 @@ import {
   reconcileBillingState,
   cancelSubscription,
 } from '../../services/billing.js';
+import { signState } from '../../lib/signedState.js';
 import { env, isProduction } from '../../config/env.js';
 
 const router = Router();
@@ -47,7 +48,7 @@ const purchaseSchema = z.object({ packId: z.enum(['starter', 'growth', 'pro']) }
 // POST /api/billing/purchase — subscribes the shop to a monthly recurring credit pack.
 router.post('/billing/purchase', async (req, res) => {
   const { packId } = purchaseSchema.parse(req.body);
-  const returnUrl = `${env.SHOPIFY_APP_URL}/api/billing/confirm`;
+  const returnUrl = `${env.SHOPIFY_APP_URL}/billing/confirm?state=${signState({ shop: req.shopDomain })}`;
   const confirmationUrl = await createPackSubscription({
     session: req.shopSession,
     packId,
@@ -88,7 +89,7 @@ router.get('/billing/custom-purchase/estimate', async (req, res) => {
 // packs. Credited once Shopify confirms the charge, same as POST /api/billing/purchase.
 router.post('/billing/custom-purchase', async (req, res) => {
   const { amountUSD } = amountSchema.parse(req.body);
-  const returnUrl = `${env.SHOPIFY_APP_URL}/api/billing/confirm`;
+  const returnUrl = `${env.SHOPIFY_APP_URL}/billing/confirm?state=${signState({ shop: req.shopDomain })}`;
   const result = await createCustomCreditPurchase({
     session: req.shopSession,
     amountUSD,
@@ -96,12 +97,6 @@ router.post('/billing/custom-purchase', async (req, res) => {
     isTest: !isProduction,
   });
   res.json(result);
-});
-
-// GET /api/billing/confirm — redirect target after purchase/subscription approval.
-router.get('/billing/confirm', async (req, res) => {
-  const result = await reconcileBillingState({ session: req.shopSession, isTest: !isProduction });
-  res.redirect(`${env.SHOPIFY_APP_URL}/billing?confirmed=${result.creditedPacks.length > 0 || result.unlimited}`);
 });
 
 export default router;

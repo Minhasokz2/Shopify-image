@@ -11,10 +11,8 @@ import { assertQuotaAvailable, getUsageSummary } from '../../services/imageOptim
 import { SUPPORTED_INPUT_FORMATS, SUPPORTED_OUTPUT_FORMATS } from '../../services/imageConversion.js';
 import { restoreProductImage, ShopifyMediaReplaceError } from '../../services/shopifyMediaReplace.js';
 import { imageOptimizerWorker } from '../../services/imageOptimizerWorker.js';
-import {
-  createImageOptimizerSubscription,
-  reconcileBillingState,
-} from '../../services/billing.js';
+import { createImageOptimizerSubscription } from '../../services/billing.js';
+import { signState } from '../../lib/signedState.js';
 import { env, isProduction } from '../../config/env.js';
 
 const router = Router();
@@ -213,23 +211,17 @@ router.post('/image-optimizer/jobs/:jobId/restore', async (req, res) => {
 
 // POST /api/image-optimizer/billing/subscribe — the $2.99/mo add-on, independent of the
 // generation-credits plan (see /api/billing/purchase and /api/billing/custom-purchase for that).
+// The confirm redirect below lives outside /api (see routes/billingConfirm.js) — Shopify's billing
+// approval page redirects the merchant's top-level browser here, which never carries an App
+// Bridge session token the way an authenticated fetch would.
 router.post('/image-optimizer/billing/subscribe', async (req, res) => {
-  const returnUrl = `${env.SHOPIFY_APP_URL}/api/image-optimizer/billing/confirm`;
+  const returnUrl = `${env.SHOPIFY_APP_URL}/image-optimizer/billing/confirm?state=${signState({ shop: req.shopDomain })}`;
   const confirmationUrl = await createImageOptimizerSubscription({
     session: req.shopSession,
     returnUrl,
     isTest: !isProduction,
   });
   res.json({ confirmationUrl });
-});
-
-// GET /api/image-optimizer/billing/confirm — redirect target after the merchant approves/declines
-// the add-on subscription. Reuses the same reconcileBillingState() as the credits system's
-// confirm route since a shop's full billing state (credits, unlimited, and this add-on) is always
-// re-checked together — cheap, and avoids two different "what's actually active now" code paths.
-router.get('/image-optimizer/billing/confirm', async (req, res) => {
-  const result = await reconcileBillingState({ session: req.shopSession, isTest: !isProduction });
-  res.redirect(`${env.SHOPIFY_APP_URL}/image-optimizer/settings?confirmed=${result.imageOptimizerAddon}`);
 });
 
 export default router;

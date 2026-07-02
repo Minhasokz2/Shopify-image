@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { serializeTimestamps } from './lib/serializeTimestamps.js';
 import authRouter from './routes/auth.js';
 import googleAuthRouter from './routes/googleAuth.js';
+import billingConfirmRouter from './routes/billingConfirm.js';
 import webhooksRouter from './routes/webhooks.js';
 import apiRouter from './routes/api/index.js';
 import adminRouter from './routes/admin/index.js';
@@ -58,6 +59,7 @@ export function createApp() {
 
   app.use(authRouter);
   app.use(googleAuthRouter);
+  app.use(billingConfirmRouter);
   app.use('/api', apiRouter);
 
   // Serve the built embedded-app frontend. With Shopify managed installation + token exchange
