@@ -25,6 +25,13 @@ export function createApp() {
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
   app.get('/health', (req, res) => res.status(200).send('ok'));
 
+  // Public privacy policy — linked from the Shopify App Store listing, so it must be reachable
+  // without any Shopify/App Bridge/Google auth. Registered before the SPA catch-all below, which
+  // would otherwise swallow the route and serve the embedded app's HTML instead.
+  app.get('/privacy', (req, res) => {
+    res.sendFile(path.join(__dirname, '../static/privacy.html'));
+  });
+
   // HMAC is computed over the raw body — this must be mounted before express.json() below.
   app.use('/webhooks', webhooksRouter);
 
