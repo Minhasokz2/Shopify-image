@@ -68,6 +68,10 @@ export default function GenerationReview() {
     try {
       const result = await publishMutation.mutateAsync();
       setPublishResult(result);
+      // The job's status is already terminal (`succeeded`) by the time publishing happens, so
+      // useJobPolling's refetchInterval has stopped polling — without this, the "Published"
+      // badge and approve checkboxes below would keep showing stale pre-publish state.
+      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
     } catch (err) {
       setPublishError(err.message || 'Failed to publish approved variations.');
     }
