@@ -15,6 +15,8 @@ Firestore Database → Indexes, or via `firebase deploy --only firestore:indexes
 | `status` (single field, `IN`) | — | `jobsRepo.findResumable` — boot-time resume query |
 | `batches` | `shopDomain` ASC, `createdAt` DESC | `batchesRepo.findByShop` — Bulk Queue page |
 | `products` | `shopDomain` ASC | `productsRepo.findByShop` — cached catalog read |
+| `conversion_jobs` | `shopDomain` ASC, `createdAt` DESC | `conversionJobsRepo.findByShop` — Compress Image → Conversion History page |
+| `conversion_batches` | `shopDomain` ASC, `createdAt` DESC | `conversionBatchesRepo.findByShop` — Compress Image bulk batch progress |
 
 Firestore will surface a direct "create this index" console link in the error message the first
 time an unindexed composite query runs in production — the table above is a heads-up so those

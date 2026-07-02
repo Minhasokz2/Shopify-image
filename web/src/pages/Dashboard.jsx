@@ -16,13 +16,13 @@ import {
   EmptyState,
   Badge,
   Box,
-  Icon,
   ProgressBar,
   Thumbnail,
 } from '@shopify/polaris';
 import { ProductIcon, PersonIcon, CreditCardIcon, ExitIcon, WandIcon, ImagesIcon, ClockIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { SectionHeading } from '../components/SectionHeading.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 
@@ -46,17 +46,6 @@ function useGoogleAccount() {
     queryFn: () => apiClient.get('/api/auth/google/status'),
     staleTime: Infinity, // set once at sign-in; no reason to refetch mid-session
   });
-}
-
-function SectionHeading({ icon, children }) {
-  return (
-    <InlineStack gap="150" blockAlign="center">
-      <Icon source={icon} />
-      <Text as="h2" variant="headingMd">
-        {children}
-      </Text>
-    </InlineStack>
-  );
 }
 
 function StatBlock({ value, label }) {
