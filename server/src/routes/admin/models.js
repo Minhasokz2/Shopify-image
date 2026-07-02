@@ -4,10 +4,12 @@ import { allowedModelsRepo } from '../../models/allowedModelsRepo.js';
 
 const router = Router();
 
-// Scene-only for now (spec decision) — keep in sync with SCENE_ENDPOINTS in services/fal.js.
-// "-multi" isn't a separate FAL model id; it's the multi-image variant of flux-kontext-max,
-// selected automatically at generation time via supportsMultiImage.
-const KNOWN_SCENE_MODELS = ['flux-kontext-max', 'flux-kontext-pro', 'imagen-4'];
+// Scene-only for now (spec decision) — must exactly match the keys of CUSTOM_SCENE_MODELS in
+// services/fal.js, which is what actually executes these at generation time. Every one of these
+// was verified live against fal.ai's real schema to have a genuine image-input parameter before
+// being added here — see the "Add allowed model" research: Imagen 4 was evaluated and rejected
+// for having none (pure text-to-image), which is why it isn't in this list.
+const KNOWN_SCENE_MODELS = ['flux-kontext-max', 'flux-kontext-pro', 'seedream-v4-edit', 'nano-banana', 'nano-banana-pro'];
 
 const idSchema = z
   .string()

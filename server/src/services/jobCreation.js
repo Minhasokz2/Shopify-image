@@ -34,6 +34,7 @@ export const generationInputSchema = z
     modelId: z.string().min(1).optional(),
     customPrompt: z.string().min(1).max(2000).optional(),
     imageUrls: z.array(z.string().url()).min(1).max(6).optional(),
+    numImages: z.coerce.number().int().min(1).max(4).optional(),
   })
   .superRefine((body, ctx) => {
     const isCustom = Boolean(body.modelId || body.customPrompt || body.imageUrls);
@@ -78,12 +79,16 @@ export const generationInputSchema = z
 export async function createGenerationJob({ shopDomain, input, idempotencyKey, batchId = null }) {
   const body = generationInputSchema.parse(input);
   const isCustom = Boolean(body.modelId);
+  const numImages = body.numImages ?? 1;
 
   if (body.contentType === 'ugc') {
     assertAdultPersona(body.personaSettings);
   }
 
-  await assertSufficientCredits(shopDomain, isCustom ? { modelId: body.modelId } : { templateId: body.templateId });
+  await assertSufficientCredits(
+    shopDomain,
+    isCustom ? { modelId: body.modelId, numImages } : { templateId: body.templateId },
+  );
 
   let cleanImageUrl = null;
   if (body.reuseCleanImageFromJobId) {
@@ -106,6 +111,7 @@ export async function createGenerationJob({ shopDomain, input, idempotencyKey, b
       templateId: isCustom ? null : body.templateId,
       modelId: isCustom ? body.modelId : null,
       customPrompt: isCustom ? body.customPrompt : null,
+      numImages: isCustom ? numImages : null,
       personaSettings: body.personaSettings ?? null,
       productCategoryTag: body.productCategoryTag ?? null,
       productAttributes: body.productAttributes ?? null,

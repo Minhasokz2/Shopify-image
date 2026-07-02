@@ -4,8 +4,10 @@ import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
 // Must match server/src/routes/admin/templates.js's MODELS_BY_CATEGORY exactly — the server is
 // the source of truth and will 400 on a mismatch, this is just so the form only offers valid
 // choices instead of letting the admin discover the constraint from an error message.
+// 'imagen-4' removed — verified to have zero image-input parameters (pure text-to-image), so it
+// silently discarded the actual product photo for any template assigned to it.
 const MODELS_BY_CATEGORY = {
-  scene: ['flux-kontext-max', 'flux-kontext-pro', 'imagen-4'],
+  scene: ['flux-kontext-max', 'flux-kontext-pro'],
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };

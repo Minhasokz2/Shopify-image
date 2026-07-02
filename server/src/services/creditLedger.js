@@ -27,11 +27,14 @@ export class UnknownModelError extends Error {
   }
 }
 
-// A job is priced by exactly one of two catalogs: a template (fixed prompt+model+cost) or an
-// admin-allowed model (merchant supplies their own prompt, cost is per-model). Every cost lookup
+// A job is priced by exactly one of two catalogs: a template (fixed prompt+model+cost, always
+// produces a fixed number of variations — cost is per-job, unchanged regardless of output count)
+// or an admin-allowed model (merchant supplies their own prompt AND picks how many images to
+// generate — cost is per-image, so the total scales with `numImages`, which is exactly what
+// stops a merchant from accidentally paying for more images than they wanted). Every cost lookup
 // in this file goes through here so there's one place that decides which catalog wins — never
 // both, never trusted from the client either way (spec Section 13/17).
-async function resolvePricing({ templateId, modelId }) {
+async function resolvePricing({ templateId, modelId, numImages = 1 }) {
   if (templateId) {
     const template = await templatesRepo.getById(templateId);
     if (!template) throw new UnknownTemplateError(templateId);
@@ -39,14 +42,14 @@ async function resolvePricing({ templateId, modelId }) {
   }
   const model = await allowedModelsRepo.getById(modelId);
   if (!model || !model.active) throw new UnknownModelError(modelId);
-  return { creditCost: model.creditCost, record: model };
+  return { creditCost: model.creditCost * numImages, record: model };
 }
 
 // Pre-flight only — does NOT deduct anything. Cost is ALWAYS read from the template/model
 // record, never trusted from the client. Real deduction happens exactly once, at job success,
 // in settleJobSuccess below.
-export async function assertSufficientCredits(shopDomain, { templateId, modelId } = {}) {
-  const { creditCost, record } = await resolvePricing({ templateId, modelId });
+export async function assertSufficientCredits(shopDomain, { templateId, modelId, numImages } = {}) {
+  const { creditCost, record } = await resolvePricing({ templateId, modelId, numImages });
 
   const shop = await shopsRepo.getByDomain(shopDomain);
   const isUnlimited = shop?.plan === 'unlimited';
@@ -89,7 +92,11 @@ export async function settleJobSuccess({ jobId, shopDomain, templateId, modelId,
     }
 
     const shop = shopDoc.data();
-    const cost = pricingDoc.data().creditCost;
+    // numImages lives on the job doc itself (set once, at creation, by the server) rather than
+    // being passed in again here — same principle as re-reading the pricing doc instead of
+    // trusting a cost the caller computed: settlement never trusts anything it didn't just look
+    // up itself from a source of truth.
+    const cost = templateId ? pricingDoc.data().creditCost : pricingDoc.data().creditCost * (job.numImages ?? 1);
     const isUnlimited = shop.plan === 'unlimited';
 
     tx.update(jobRef, {

@@ -80,6 +80,22 @@ describe('creditLedger: assertSufficientCredits (pre-flight only, never deducts)
       assertSufficientCredits('shop-custom2.myshopify.com', { modelId: 'imagen-4' }),
     ).rejects.toBeInstanceOf(UnknownModelError);
   });
+
+  it('scales the allowed-model cost by numImages — per-image pricing, not per-job', async () => {
+    await seedShop('shop-custom4.myshopify.com', { creditBalance: 20 });
+    await firestore.collection('allowed_models').doc('flux-kontext-max').set({ creditCost: 4, active: true });
+
+    await expect(
+      assertSufficientCredits('shop-custom4.myshopify.com', { modelId: 'flux-kontext-max', numImages: 3 }),
+    ).resolves.toMatchObject({ creditCost: 4 }); // the raw per-image rate on the record itself
+
+    // 4 credits/image * 3 images = 12 required — a shop with only 10 can't afford it, even
+    // though it could afford a single image at 4.
+    await seedShop('shop-custom5.myshopify.com', { creditBalance: 10 });
+    await expect(
+      assertSufficientCredits('shop-custom5.myshopify.com', { modelId: 'flux-kontext-max', numImages: 3 }),
+    ).rejects.toBeInstanceOf(InsufficientCreditsError);
+  });
 });
 
 describe('creditLedger: settleJobSuccess (deduct only on success, server-recomputed cost)', () => {
@@ -181,6 +197,24 @@ describe('creditLedger: settleJobSuccess (deduct only on success, server-recompu
     expect(result).toEqual({ alreadyCharged: false, creditsCharged: 4 });
     const shop = await firestore.collection('shops').doc('shop-custom3.myshopify.com').get();
     expect(shop.data().creditBalance).toBe(16);
+  });
+
+  it('charges numImages * per-image cost for a custom-prompt job, read from the job doc itself', async () => {
+    await seedShop('shop-custom6.myshopify.com', { creditBalance: 20 });
+    await firestore.collection('allowed_models').doc('flux-kontext-max').set({ creditCost: 4, active: true });
+    await seedJob('job-custom6', { shopDomain: 'shop-custom6.myshopify.com', numImages: 3 });
+
+    const result = await settleJobSuccess({
+      jobId: 'job-custom6',
+      shopDomain: 'shop-custom6.myshopify.com',
+      modelId: 'flux-kontext-max',
+      variations: [],
+      modelUsed: 'flux-kontext-max',
+    });
+
+    expect(result).toEqual({ alreadyCharged: false, creditsCharged: 12 });
+    const shop = await firestore.collection('shops').doc('shop-custom6.myshopify.com').get();
+    expect(shop.data().creditBalance).toBe(8);
   });
 });
 

@@ -24,6 +24,7 @@ import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const MAX_IMAGES = 6;
+const NUM_IMAGES_OPTIONS = [1, 2, 3, 4];
 
 function useAllowedModels() {
   return useQuery({
@@ -43,6 +44,7 @@ export default function CustomPromptStudio() {
   const [selectedImageUrls, setSelectedImageUrls] = useState(() => new Set());
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedModelId, setSelectedModelId] = useState('');
+  const [numImages, setNumImages] = useState('1');
   const [generateError, setGenerateError] = useState(null);
 
   const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useAllowedModels();
@@ -52,7 +54,10 @@ export default function CustomPromptStudio() {
 
   const isUnlimited = creditData?.plan === 'unlimited';
   const balance = creditData?.creditBalance ?? null;
-  const canAfford = !selectedModel || isUnlimited || balance === null || balance >= selectedModel.creditCost;
+  // Cost is per image, not per job — generating 3 images costs 3x one image, so the count picker
+  // directly controls spend rather than always paying for a fixed batch the merchant didn't ask for.
+  const totalCost = selectedModel ? selectedModel.creditCost * Number(numImages) : null;
+  const canAfford = !selectedModel || isUnlimited || balance === null || balance >= totalCost;
 
   // Every image from every selected product, flattened, so the merchant can combine images
   // across products into one generation (e.g. "these two products together on a shelf").
@@ -91,6 +96,7 @@ export default function CustomPromptStudio() {
         modelId: selectedModelId,
         customPrompt: customPrompt.trim(),
         imageUrls: Array.from(selectedImageUrls),
+        numImages: Number(numImages),
         idempotencyKey: crypto.randomUUID(),
       }),
   });
@@ -203,7 +209,7 @@ export default function CustomPromptStudio() {
           <Card>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">
-                3. Choose a model
+                3. Choose a model and how many images
               </Text>
               {modelsLoading ? (
                 <InlineStack align="center">
@@ -217,17 +223,30 @@ export default function CustomPromptStudio() {
                 <>
                   <Select
                     label="Model"
-                    labelHidden
                     options={[
                       { label: 'Select a model…', value: '' },
-                      ...models.map((m) => ({ label: `${m.label} (${m.creditCost} credits)`, value: m.id })),
+                      ...models.map((m) => ({ label: `${m.label} (${m.creditCost} credit${m.creditCost === 1 ? '' : 's'}/image)`, value: m.id })),
                     ]}
                     value={selectedModelId}
                     onChange={setSelectedModelId}
                   />
+
+                  {selectedModel ? (
+                    <Select
+                      label="Number of images to generate"
+                      helpText="Cost is per image — generating more only costs more if you actually want more."
+                      options={NUM_IMAGES_OPTIONS.map((n) => ({
+                        label: `${n} image${n === 1 ? '' : 's'} — ${n * selectedModel.creditCost} credits total`,
+                        value: String(n),
+                      }))}
+                      value={numImages}
+                      onChange={setNumImages}
+                    />
+                  ) : null}
+
                   {selectedModel ? (
                     <InlineStack gap="150">
-                      <Badge tone={canAfford ? undefined : 'critical'}>{`${selectedModel.creditCost} credits`}</Badge>
+                      <Badge tone={canAfford ? undefined : 'critical'}>{`${totalCost} credits total`}</Badge>
                       {selectedModel.supportsMultiImage ? <Badge tone="info">Supports multiple images</Badge> : null}
                     </InlineStack>
                   ) : null}
@@ -239,7 +258,7 @@ export default function CustomPromptStudio() {
                   ) : null}
                   {selectedModel && !canAfford ? (
                     <Text as="span" tone="critical">
-                      Not enough credits ({balance} left).
+                      Not enough credits ({balance} left, need {totalCost}).
                     </Text>
                   ) : null}
                 </>

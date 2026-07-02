@@ -1,22 +1,93 @@
 import { useState } from 'react';
-import { Modal, FormLayout, TextField, Select, Checkbox, Banner } from '@shopify/polaris';
+import { Modal, FormLayout, TextField, Select, Checkbox, Banner, Box, BlockStack, InlineStack, Text, Badge } from '@shopify/polaris';
 
 // Must match server/src/routes/admin/models.js's KNOWN_SCENE_MODELS exactly — the server is the
-// source of truth and will 400 on a mismatch.
-const KNOWN_SCENE_MODELS = ['flux-kontext-max', 'flux-kontext-pro', 'imagen-4'];
-const MULTI_IMAGE_CAPABLE = new Set(['flux-kontext-max', 'flux-kontext-pro']);
+// source of truth and will 400 on a mismatch. Every one of these was verified live against
+// fal.ai's real schema (get_model_schema) to have a genuine image-input parameter before being
+// added — Imagen 4 was evaluated and rejected here for having none (pure text-to-image, it
+// silently ignores any product photo you send it).
+const FAL_MODEL_OPTIONS = [
+  { value: 'flux-kontext-max', label: 'FLUX Kontext Max — best editing fidelity, single or multi-image' },
+  { value: 'flux-kontext-pro', label: 'FLUX Kontext Pro — faster/cheaper FLUX tier, single or multi-image' },
+  { value: 'seedream-v4-edit', label: 'Seedream V4 Edit — cheapest multi-image editor (up to 10 refs)' },
+  { value: 'nano-banana', label: 'Nano Banana (Gemini 2.5 Flash Image) — balanced quality/cost, multi-image' },
+  { value: 'nano-banana-pro', label: 'Nano Banana Pro — premium/4K tier, multi-image' },
+];
 
-const FAL_MODEL_OPTIONS = KNOWN_SCENE_MODELS.map((value) => ({ label: value, value }));
+// All 5 catalog models support multi-image reference structurally (FLUX via a dedicated
+// /multi endpoint, the others because their schema always takes an image array) — this flag is
+// still admin-editable in case a model should be advertised as single-image-only for UX reasons.
+const MULTI_IMAGE_CAPABLE = new Set(FAL_MODEL_OPTIONS.map((o) => o.value));
+
+// Real per-image USD cost, verified live via fal.ai's pricing API (mcp__fal-ai__get_pricing) —
+// not estimated. Used only for the margin calculator below; never sent to the server.
+const REAL_COST_PER_IMAGE_USD = {
+  'flux-kontext-max': 0.08,
+  'flux-kontext-pro': 0.04,
+  'seedream-v4-edit': 0.03,
+  'nano-banana': 0.0398,
+  'nano-banana-pro': 0.15,
+};
+
+// Revenue per credit, derived from the actual credit packs in server/src/services/billing.js:
+// Starter $9/50cr, Growth $29/200cr, Pro $69/600cr. Bulk packs pay merchants less per credit, so
+// the low end of this range (Pro pack) is the conservative number to check margin against — if a
+// model is still profitable there, it's profitable on every pack.
+const REVENUE_PER_CREDIT_USD = { low: 69 / 600, high: 9 / 50 };
 
 const EMPTY_MODEL = {
   id: '',
   label: '',
   category: 'scene',
-  falModel: KNOWN_SCENE_MODELS[0],
-  creditCost: '4',
-  supportsMultiImage: false,
+  falModel: FAL_MODEL_OPTIONS[0].value,
+  creditCost: '1',
+  supportsMultiImage: true,
   active: true,
 };
+
+function MarginCalculator({ falModel, creditCost }) {
+  const realCost = REAL_COST_PER_IMAGE_USD[falModel];
+  const credits = Number(creditCost);
+  if (!realCost || !credits || credits <= 0) return null;
+
+  const revenueLow = credits * REVENUE_PER_CREDIT_USD.low;
+  const revenueHigh = credits * REVENUE_PER_CREDIT_USD.high;
+  const marginLow = revenueLow - realCost;
+  const marginHigh = revenueHigh - realCost;
+  const marginPctLow = Math.round((marginLow / revenueLow) * 100);
+  const isProfitableAtWorstCase = marginLow > 0;
+
+  return (
+    <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+      <BlockStack gap="200">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h3" fontWeight="medium">
+            Margin calculator (per image)
+          </Text>
+          <Badge tone={isProfitableAtWorstCase ? 'success' : 'critical'}>
+            {isProfitableAtWorstCase ? 'Profitable' : 'Loses money'} on bulk packs
+          </Badge>
+        </InlineStack>
+        <InlineStack gap="400" wrap>
+          <Text as="span" variant="bodySm">
+            Real FAL cost: <strong>${realCost.toFixed(4)}</strong>
+          </Text>
+          <Text as="span" variant="bodySm">
+            Merchant revenue at {credits} credit{credits === 1 ? '' : 's'}: <strong>${revenueLow.toFixed(3)}–${revenueHigh.toFixed(3)}</strong>
+          </Text>
+          <Text as="span" variant="bodySm" tone={isProfitableAtWorstCase ? undefined : 'critical'}>
+            Margin: <strong>${marginLow.toFixed(3)}–${marginHigh.toFixed(3)}</strong> ({marginPctLow}%–
+            {Math.round((marginHigh / revenueHigh) * 100)}% on the Pro/bulk pack rate)
+          </Text>
+        </InlineStack>
+        <Text as="span" variant="bodySm" tone="subdued">
+          Revenue range reflects the Starter ($9/50 credits = $0.18/credit) through Pro ($69/600 credits =
+          $0.115/credit) packs — the low end is the conservative number to check profitability against.
+        </Text>
+      </BlockStack>
+    </Box>
+  );
+}
 
 export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
   const isEditing = Boolean(model);
@@ -27,7 +98,6 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
   const updateField = (field) => (value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
-      // A model that doesn't support multi-image reference at all can't have the flag left on.
       if (field === 'falModel' && !MULTI_IMAGE_CAPABLE.has(value)) {
         next.supportsMultiImage = false;
       }
@@ -96,11 +166,12 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
             options={FAL_MODEL_OPTIONS}
             value={form.falModel}
             onChange={updateField('falModel')}
-            helpText="Scene models only — custom-prompt generation currently supports static product scenes."
+            helpText="Scene models only — custom-prompt generation currently supports static product scenes. Every option here is verified to accept a reference image; models without one (like Imagen 4) are intentionally excluded."
           />
 
           <TextField
-            label="Credit cost"
+            label="Credit cost per image"
+            helpText="Charged per generated image, not per job — a merchant generating 3 images pays 3x this."
             type="number"
             min={1}
             value={form.creditCost}
@@ -108,9 +179,11 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
             autoComplete="off"
           />
 
+          <MarginCalculator falModel={form.falModel} creditCost={form.creditCost} />
+
           <Checkbox
             label="Supports multi-image reference"
-            helpText="Lets merchants select more than one product image to combine into a single custom generation. Only enable for models with a verified multi-image endpoint."
+            helpText="Lets merchants select more than one product image to combine into a single custom generation."
             checked={form.supportsMultiImage}
             onChange={updateField('supportsMultiImage')}
             disabled={!MULTI_IMAGE_CAPABLE.has(form.falModel)}

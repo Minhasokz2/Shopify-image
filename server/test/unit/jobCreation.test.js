@@ -94,7 +94,7 @@ describe('createGenerationJob: custom mode', () => {
       },
     });
 
-    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { modelId: 'flux-kontext-max' });
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { modelId: 'flux-kontext-max', numImages: 1 });
     expect(claimJobCreation).toHaveBeenCalledWith(
       expect.objectContaining({
         jobData: expect.objectContaining({
@@ -107,6 +107,28 @@ describe('createGenerationJob: custom mode', () => {
       }),
     );
     expect(jobWorkerEnqueue).toHaveBeenCalled();
+  });
+
+  it('threads an explicit numImages through to the credit check and the stored job', async () => {
+    await createGenerationJob({
+      shopDomain: 'shop.myshopify.com',
+      idempotencyKey: 'key-3',
+      input: {
+        productId: 'p1',
+        contentType: 'scene',
+        modelId: 'flux-kontext-max',
+        customPrompt: 'A custom scene',
+        imageUrls: ['https://shop.example.com/a.png'],
+        numImages: 3,
+      },
+    });
+
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { modelId: 'flux-kontext-max', numImages: 3 });
+    expect(claimJobCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobData: expect.objectContaining({ numImages: 3 }),
+      }),
+    );
   });
 
   it('checks credits against the templateId for a template-mode job, leaving modelId/customPrompt null', async () => {

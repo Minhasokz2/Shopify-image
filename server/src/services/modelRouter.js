@@ -14,6 +14,13 @@ export class UnknownContentTypeError extends Error {
 // Pure routing decision (spec Section 8) — no I/O. Given a content type / product category /
 // template, decides which model handles the job. Color-critical categories always win for
 // static scenes regardless of the template's own preferred model.
+//
+// Previously routed to 'imagen-4' — removed after live verification showed that endpoint has
+// zero image-input parameters (pure text-to-image). It was silently discarding the actual
+// product photo for every cosmetics/skincare/makeup/beauty template, generating unrelated
+// output instead of an edit of the real product. flux-kontext-max is a genuine image-editing
+// model (preserves the input image, including its exact color, by construction) and is already
+// the default preferredModel for most scene templates.
 export function routeModel({ contentType, productCategoryTag, templateId, templates }) {
   const template = templates[templateId];
   if (!template) throw new Error(`Unknown templateId: ${templateId}`);
@@ -21,7 +28,7 @@ export function routeModel({ contentType, productCategoryTag, templateId, templa
   switch (contentType) {
     case 'scene':
       if (COLOR_CRITICAL_CATEGORIES.includes(productCategoryTag?.toLowerCase())) {
-        return 'imagen-4';
+        return 'flux-kontext-max';
       }
       return template.preferredModel;
     case 'ugc':
@@ -77,8 +84,8 @@ export async function executeGeneration({
 // choice is used as-is, not overridden by the color-critical-category logic that applies to
 // template-driven jobs (they picked this model on purpose). Background removal still runs on
 // every selected source image, same two-step pipeline as the template path.
-export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt }) {
+export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt, numImages }) {
   const cleanImageUrls = await Promise.all(sourceImageUrls.map((url) => removeBackground(url)));
-  const variationUrls = await generateCustomScene({ model, cleanImageUrls, prompt: customPrompt });
+  const variationUrls = await generateCustomScene({ model, cleanImageUrls, prompt: customPrompt, numImages });
   return { model, cleanImageUrls, variationUrls };
 }

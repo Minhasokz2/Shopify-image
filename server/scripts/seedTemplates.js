@@ -13,7 +13,7 @@ const SCENE_TEMPLATES = [
   { id: 'flatlay-topdown', name: 'Flat Lay Top-Down', preferredModel: 'flux-kontext-max', creditCost: 4, promptTemplate: 'Top-down flat lay composition, product centered, styled with complementary props.' },
   { id: 'fabric-texture', name: 'Textured Fabric Backdrop', preferredModel: 'flux-kontext-max', creditCost: 4, promptTemplate: 'Product on a textured linen fabric backdrop, soft directional light.' },
   { id: 'seasonal-holiday', name: 'Seasonal — Holiday', preferredModel: 'flux-kontext-max', creditCost: 4, promptTemplate: 'Product styled in a warm seasonal holiday scene with tasteful festive accents.' },
-  { id: 'color-critical-studio', name: 'Color-Accurate Studio (cosmetics/skincare)', preferredModel: 'imagen-4', creditCost: 3, promptTemplate: 'Color-accurate studio product shot, neutral white background, true-to-life color rendering.' },
+  { id: 'color-critical-studio', name: 'Color-Accurate Studio (cosmetics/skincare)', preferredModel: 'flux-kontext-max', creditCost: 4, promptTemplate: 'Color-accurate studio product shot, neutral white background, true-to-life color rendering.' },
 ].map((t) => ({ ...t, category: 'scene' }));
 
 const UGC_TEMPLATES = [

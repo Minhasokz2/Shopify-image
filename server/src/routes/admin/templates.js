@@ -4,8 +4,11 @@ import { templatesRepo } from '../../models/templatesRepo.js';
 
 const router = Router();
 
+// 'imagen-4' removed after live verification showed it has zero image-input parameters (pure
+// text-to-image) — it was silently discarding the actual product photo for every template
+// assigned to it. Keep in sync with SCENE_ENDPOINTS in services/fal.js.
 const MODELS_BY_CATEGORY = {
-  scene: ['flux-kontext-max', 'flux-kontext-pro', 'imagen-4'],
+  scene: ['flux-kontext-max', 'flux-kontext-pro'],
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };

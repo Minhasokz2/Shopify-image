@@ -12,12 +12,12 @@ import {
   Checkbox,
   Button,
   Box,
-  ProgressBar,
 } from '@shopify/polaris';
 import { useJobPolling } from '../hooks/useJobPolling.js';
 import { apiClient } from '../api/client.js';
 import { BeforeAfterSlider } from '../components/BeforeAfterSlider.jsx';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
+import { GenerationProgress } from '../components/GenerationProgress.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 
 const IN_PROGRESS_STATUSES = new Set(['pending', 'processing']);
@@ -87,17 +87,7 @@ export default function GenerationReview() {
       );
     }
     if (IN_PROGRESS_STATUSES.has(job.status)) {
-      return (
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack gap="200" blockAlign="center">
-              <Spinner accessibilityLabel="Generating" size="small" />
-              <Text as="span">{job.status === 'pending' ? 'Queued…' : 'Generating…'}</Text>
-            </InlineStack>
-            <ProgressBar progress={job.status === 'pending' ? 10 : 60} tone="primary" />
-          </BlockStack>
-        </Card>
-      );
+      return <GenerationProgress job={job} />;
     }
     return null;
   }, [job]);
@@ -162,7 +152,10 @@ export default function GenerationReview() {
                         // eslint-disable-next-line jsx-a11y/media-has-caption
                         <video controls style={{ width: '100%', borderRadius: 8 }} src={variation.url} />
                       ) : (
-                        <BeforeAfterSlider beforeSrc={job.productImageUrl} afterSrc={variation.url} />
+                        <BeforeAfterSlider
+                          beforeSrc={job.productImageUrl ?? job.productImageUrls?.[0]}
+                          afterSrc={variation.url}
+                        />
                       )}
                       <InlineStack align="space-between" blockAlign="center">
                         <Checkbox

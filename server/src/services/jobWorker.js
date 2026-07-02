@@ -162,6 +162,7 @@ class JobWorker {
       model: job.modelId,
       sourceImageUrls: job.productImageUrls,
       customPrompt: job.customPrompt,
+      numImages: job.numImages ?? 1,
     });
   }
 

@@ -17,7 +17,7 @@ const { routeModel, executeGeneration, executeCustomGeneration, UnknownContentTy
 const TEMPLATES = {
   'studio-white': { preferredModel: 'flux-kontext-max' },
   'gradient-soft': { preferredModel: 'flux-kontext-pro' },
-  'color-critical-studio': { preferredModel: 'imagen-4' },
+  'color-critical-studio': { preferredModel: 'flux-kontext-max' },
   'ugc-home-casual': { preferredModel: 'gpt-image-2' },
   'video-slow-rotate': { preferredModel: 'seedance-fast' },
   'video-cinematic-pan': { preferredModel: 'kling-3' },
@@ -36,10 +36,10 @@ describe('routeModel', () => {
   });
 
   it.each(['skincare', 'cosmetics', 'makeup', 'beauty', 'SKINCARE', 'Cosmetics'])(
-    'routes color-critical category "%s" to imagen-4 regardless of the template',
+    'routes color-critical category "%s" to flux-kontext-max regardless of the template',
     (category) => {
       expect(routeModel({ contentType: 'scene', productCategoryTag: category, templateId: 'studio-white', templates: TEMPLATES })).toBe(
-        'imagen-4',
+        'flux-kontext-max',
       );
     },
   );
