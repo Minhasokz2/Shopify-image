@@ -18,7 +18,11 @@ export const personaSettingsSchema = z.object({
 // content type only, spec decision to ship this narrower first). Never both, never neither.
 export const generationInputSchema = z
   .object({
-    productId: z.string().min(1),
+    // Required for template mode (always tied to a real catalog product). Optional for custom
+    // mode: Virtual Try-On's garment image can come from an upload with no Shopify product behind
+    // it (see VirtualTryOn.jsx) — those jobs simply have nothing to publish back to Shopify later
+    // (routes/api/jobs.js's publish endpoint still requires a real productId of its own).
+    productId: z.string().min(1).optional(),
     contentType: z.enum(['scene', 'ugc', 'video']),
     personaSettings: personaSettingsSchema.optional(),
     productCategoryTag: z.string().optional(),
@@ -50,6 +54,10 @@ export const generationInputSchema = z
     if (!isCustom && !isTemplate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['templateId'], message: 'templateId is required.' });
       return;
+    }
+
+    if (isTemplate && !body.productId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productId'], message: 'productId is required for template mode.' });
     }
 
     if (isCustom) {
@@ -104,7 +112,7 @@ export async function createGenerationJob({ shopDomain, input, idempotencyKey, b
     idempotencyKey,
     jobId,
     jobData: {
-      productId: body.productId,
+      productId: body.productId ?? null,
       productImageUrl: isCustom ? null : body.imageUrl,
       productImageUrls: isCustom ? body.imageUrls : null,
       contentType: body.contentType,

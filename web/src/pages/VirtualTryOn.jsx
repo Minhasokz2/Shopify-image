@@ -44,10 +44,13 @@ function useProducts(cursor) {
   });
 }
 
-// The garment must come from an existing Shopify product, not an arbitrary upload — its
-// productId is reused later if the merchant publishes the try-on result back to Shopify as an
-// on-model shot for that product (same pattern as UGC content, see GenerationReview.jsx). An
-// uploaded garment image would have no real product to attach that publish to.
+// The garment can come from an existing product OR a direct upload. Picking an existing product
+// carries its productId along, which is reused later if the merchant publishes the try-on result
+// back to Shopify as an on-model shot for that product (same pattern as UGC content, see
+// GenerationReview.jsx). An uploaded garment has no real product to attach that publish to, so
+// jobs created that way simply have no publish option later (see jobCreation.js — productId is
+// optional for custom-mode jobs for exactly this reason) — everything else about generating and
+// downloading the result still works the same.
 export default function VirtualTryOn() {
   const navigate = useNavigate();
 
@@ -101,21 +104,35 @@ export default function VirtualTryOn() {
     setProductCursor(productsPage?.pageInfo?.endCursor);
   };
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      return apiClient.postFormData('/api/uploads/reference-image', formData);
-    },
-  });
+  const uploadFile = (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.postFormData('/api/uploads/reference-image', formData);
+  };
+
+  const personUploadMutation = useMutation({ mutationFn: uploadFile });
+  const garmentUploadMutation = useMutation({ mutationFn: uploadFile });
 
   const handleDropPersonPhoto = async (_dropFiles, acceptedFiles) => {
     setUploadError(null);
     const file = acceptedFiles[0];
     if (!file) return;
     try {
-      const result = await uploadMutation.mutateAsync(file);
+      const result = await personUploadMutation.mutateAsync(file);
       setPersonImageUrl(result.imageUrl);
+    } catch (err) {
+      setUploadError(err.message);
+    }
+  };
+
+  const handleDropGarmentPhoto = async (_dropFiles, acceptedFiles) => {
+    setUploadError(null);
+    const file = acceptedFiles[0];
+    if (!file) return;
+    try {
+      const result = await garmentUploadMutation.mutateAsync(file);
+      setGarmentImageUrl(result.imageUrl);
+      setGarmentProductId(null); // uploaded, not tied to a real product — see the note above
     } catch (err) {
       setUploadError(err.message);
     }
@@ -130,7 +147,7 @@ export default function VirtualTryOn() {
   const generateMutation = useMutation({
     mutationFn: () =>
       apiClient.post('/api/generate', {
-        productId: garmentProductId,
+        ...(garmentProductId ? { productId: garmentProductId } : {}),
         contentType: 'scene',
         modelId: 'fashn-tryon',
         // Unused by fashn-tryon's request shape (see fal.js's dual_image handling) but required by
@@ -158,7 +175,7 @@ export default function VirtualTryOn() {
     }
   };
 
-  const canGenerate = Boolean(personImageUrl) && Boolean(garmentImageUrl) && Boolean(garmentProductId) && canAfford;
+  const canGenerate = Boolean(personImageUrl) && Boolean(garmentImageUrl) && canAfford;
 
   return (
     <Page
@@ -202,7 +219,7 @@ export default function VirtualTryOn() {
                       />
                     </DropZone>
                   )}
-                  {uploadMutation.isPending ? (
+                  {personUploadMutation.isPending ? (
                     <InlineStack align="center">
                       <Spinner accessibilityLabel="Uploading" size="small" />
                     </InlineStack>
@@ -230,14 +247,26 @@ export default function VirtualTryOn() {
                       </Button>
                     </InlineStack>
                   ) : (
-                    <Box padding="400" background="bg-surface-secondary" borderRadius="200">
-                      <BlockStack gap="300" inlineAlign="center">
-                        <Text as="p" tone="subdued">
-                          Pick the product image you want to try on the person above.
-                        </Text>
-                        <Button onClick={() => setPickerOpen(true)}>Choose from your products</Button>
-                      </BlockStack>
-                    </Box>
+                    <BlockStack gap="300">
+                      <DropZone accept="image/*" type="image" onDrop={handleDropGarmentPhoto}>
+                        <DropZone.FileUpload
+                          actionTitle="Drag or upload your garment photo"
+                          actionHint="Supports JPG, JPEG, PNG, WEBP, up to 20MB"
+                        />
+                      </DropZone>
+                      {garmentUploadMutation.isPending ? (
+                        <InlineStack align="center">
+                          <Spinner accessibilityLabel="Uploading" size="small" />
+                        </InlineStack>
+                      ) : null}
+                      <Box>
+                        <Button onClick={() => setPickerOpen(true)}>Or choose from your products</Button>
+                      </Box>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Choosing from your products lets you publish the result back to that
+                        product's listing afterward — an uploaded garment can only be downloaded.
+                      </Text>
+                    </BlockStack>
                   )}
                 </BlockStack>
               </Card>

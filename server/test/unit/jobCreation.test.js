@@ -78,6 +78,28 @@ describe('generationInputSchema: template vs custom mode', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // Virtual Try-On's garment image can come from an upload with no Shopify product behind it
+  // (see web/src/pages/VirtualTryOn.jsx) — that job just has nothing to publish back to Shopify
+  // later, which is fine; it shouldn't block job creation itself.
+  it('accepts custom mode with no productId', () => {
+    const result = generationInputSchema.safeParse({
+      contentType: 'scene',
+      modelId: 'fashn-tryon',
+      customPrompt: 'Fit the garment onto the person exactly as shown.',
+      imageUrls: ['https://shop.example.com/person.png', 'https://shop.example.com/garment.png'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects template mode with no productId', () => {
+    const result = generationInputSchema.safeParse({
+      contentType: 'scene',
+      templateId: 'studio-white',
+      imageUrl: 'https://shop.example.com/a.png',
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('createGenerationJob: custom mode', () => {
@@ -107,6 +129,25 @@ describe('createGenerationJob: custom mode', () => {
       }),
     );
     expect(jobWorkerEnqueue).toHaveBeenCalled();
+  });
+
+  it('stores productId as null when omitted (e.g. an uploaded Virtual Try-On garment)', async () => {
+    await createGenerationJob({
+      shopDomain: 'shop.myshopify.com',
+      idempotencyKey: 'key-1',
+      input: {
+        contentType: 'scene',
+        modelId: 'fashn-tryon',
+        customPrompt: 'Fit the garment onto the person exactly as shown.',
+        imageUrls: ['https://shop.example.com/person.png', 'https://shop.example.com/garment.png'],
+      },
+    });
+
+    expect(claimJobCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobData: expect.objectContaining({ productId: null }),
+      }),
+    );
   });
 
   it('threads an explicit numImages through to the credit check and the stored job', async () => {

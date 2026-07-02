@@ -177,16 +177,25 @@ export default function GenerationReview() {
               ))}
             </InlineStack>
 
-            <InlineStack align="end">
-              <Button
-                variant="primary"
-                disabled={approvedCount === 0}
-                loading={publishMutation.isPending}
-                onClick={handlePublish}
-              >
-                {`Publish approved (${approvedCount})`}
-              </Button>
-            </InlineStack>
+            {job.productId ? (
+              <InlineStack align="end">
+                <Button
+                  variant="primary"
+                  disabled={approvedCount === 0}
+                  loading={publishMutation.isPending}
+                  onClick={handlePublish}
+                >
+                  {`Publish approved (${approvedCount})`}
+                </Button>
+              </InlineStack>
+            ) : (
+              // No real Shopify product behind this job (e.g. a Virtual Try-On job whose garment
+              // was uploaded rather than picked from the catalog) — nothing to publish media to.
+              <Text as="p" variant="bodySm" tone="subdued">
+                This result isn't tied to a product in your store, so it can't be published to a
+                listing — you can still view it above and save the image directly.
+              </Text>
+            )}
           </>
         ) : null}
       </BlockStack>
