@@ -65,9 +65,13 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
 
   // Allowed Models (admin-curated: active + priced) is the narrower, real-world source of truth
   // for what merchants can actually use — MODELS_BY_CATEGORY.scene above is just the wider
-  // code-level "shape fits a template" boundary. Null while loading; falls back to the full
-  // code-level list on load failure or before the fetch resolves, rather than blocking the form.
+  // code-level "shape fits a template" boundary. Null means "don't narrow yet" (either still
+  // loading, or the fetch failed) — falls back to the full code-level list rather than an empty
+  // Set, since an empty Set combined with the filter below would silently collapse the dropdown
+  // to just the one currently-selected model on any transient fetch error, with no indication
+  // anything went wrong.
   const [allowedSceneModelIds, setAllowedSceneModelIds] = useState(null);
+  const [allowedModelsLoadError, setAllowedModelsLoadError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,8 +81,9 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
         if (cancelled) return;
         setAllowedSceneModelIds(new Set(models.filter((m) => m.category === 'scene' && m.active).map((m) => m.falModel)));
       })
-      .catch(() => {
-        if (!cancelled) setAllowedSceneModelIds(new Set());
+      .catch((err) => {
+        if (cancelled) return;
+        setAllowedModelsLoadError(err.message || 'Failed to load Allowed Models.');
       });
     return () => {
       cancelled = true;
@@ -143,6 +148,12 @@ export function TemplateForm({ template, onSubmit, onClose, submitting, error })
           {error ? (
             <Banner tone="critical" title="Couldn't save">
               <p>{error}</p>
+            </Banner>
+          ) : null}
+
+          {allowedModelsLoadError ? (
+            <Banner tone="warning" title="Couldn't verify Allowed Models" onDismiss={() => setAllowedModelsLoadError(null)}>
+              <p>{allowedModelsLoadError} Showing every template-compatible model instead of only active Allowed Models — double check your choice is actually priced and active before saving.</p>
             </Banner>
           ) : null}
 
