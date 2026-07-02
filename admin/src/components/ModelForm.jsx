@@ -21,16 +21,10 @@ const FAL_MODEL_OPTIONS = [
   { value: 'bria-extract-object', label: 'Bria Extract Object — prompt names the object to cut out' },
   { value: 'rembg', label: 'Rembg Background Remove (budget) — single image, no prompt used' },
   { value: 'gemini-3-1-flash-retouch', label: 'Gemini 3.1 Flash Image (retouch/enhance) — multi-image' },
-  { value: 'gpt-image-2-banner', label: 'GPT Image 2 (banner/text) — TEXT-ONLY, ignores selected images' },
-  { value: 'ideogram-v4-banner', label: 'Ideogram V4 (banner/text, budget) — TEXT-ONLY, ignores selected images' },
-  { value: 'flux-schnell-scene', label: 'FLUX Schnell (fast, budget) — TEXT-ONLY, ignores selected images' },
   { value: 'topaz-upscale', label: 'Topaz Upscale — single image, no prompt used' },
   { value: 'seedvr-upscale', label: 'SeedVR2 Upscale (budget) — single image, no prompt used' },
-  { value: 'fashn-tryon', label: 'FASHN Virtual Try-On — requires EXACTLY 2 images (person, then garment)' },
-  { value: 'bria-eraser', label: 'Bria Eraser (watermark/object removal) — requires a mask; not usable yet' },
+  { value: 'fashn-tryon', label: 'FASHN Virtual Try-On — requires EXACTLY 2 images (person, then garment); driven by its own Virtual Try-On page, not the custom-prompt studio' },
   { value: 'qwen-multi-angle', label: 'Qwen Multi-Angle Shots — fixed default camera angle (no angle control yet)' },
-  { value: 'flux-lora-brand', label: 'FLUX LoRA (brand assets) — TEXT-ONLY, no trained brand LoRA support yet' },
-  { value: 'krea-2-lora-brand', label: 'Krea 2 Turbo LoRA (brand assets, budget) — TEXT-ONLY, no trained brand LoRA support yet' },
 ];
 
 // Only models that genuinely combine more than one merchant-selected image into one generation.
@@ -64,21 +58,15 @@ const REAL_COST_PER_IMAGE_USD = {
   'bria-extract-object': 0.02,
   rembg: 0.003,
   'gemini-3-1-flash-retouch': 0.08,
-  'gpt-image-2-banner': 1.0,
-  'ideogram-v4-banner': 0.01,
-  'flux-schnell-scene': 0.003,
   'topaz-upscale': 0.04,
   'seedvr-upscale': 0.004,
   'fashn-tryon': 0.075,
-  'bria-eraser': 0.04,
   'qwen-multi-angle': 0.035,
-  'flux-lora-brand': 0.035,
-  'krea-2-lora-brand': 0.01,
 };
 
 // True for costs converted from a per-megapixel/per-compute-second unit rather than fal's own
 // stated per-image/per-generation price — shown as "~" in the margin calculator.
-const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle', 'flux-lora-brand', 'krea-2-lora-brand']);
+const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle']);
 
 // Real input schema for each FAL endpoint, verified live via mcp__fal-ai__get_model_schema —
 // not guessed. Purely informational (the pipeline always sends fixed defaults: prompt, the
@@ -174,21 +162,6 @@ const MODEL_PARAMETERS = {
       'seed (integer, optional)',
     ],
   },
-  'gpt-image-2-banner': {
-    endpoint: 'openai/gpt-image-2',
-    imageInput: 'NONE — pure text-to-image. The merchant\'s selected product image(s) are never sent to this model.',
-    params: ['quality: auto | low | medium | high (default high — the main driver of its cost)', 'image_size (default landscape_4_3)'],
-  },
-  'ideogram-v4-banner': {
-    endpoint: 'ideogram/v4',
-    imageInput: 'NONE — pure text-to-image, strong at rendering readable text/typography (posters, banners).',
-    params: ['rendering_speed: TURBO | BALANCED | QUALITY (default BALANCED)', 'expansion_model: None | Medium | Large prompt-expansion tier'],
-  },
-  'flux-schnell-scene': {
-    endpoint: 'fal-ai/flux/schnell',
-    imageInput: 'NONE — pure text-to-image, the fastest/cheapest FLUX tier.',
-    params: ['num_inference_steps (default 4 — this model is built for very few steps)'],
-  },
   'topaz-upscale': {
     endpoint: 'fal-ai/topaz/upscale/image',
     imageInput: 'image_url (single). No prompt/num_images.',
@@ -201,28 +174,13 @@ const MODEL_PARAMETERS = {
   },
   'fashn-tryon': {
     endpoint: 'fal-ai/fashn/tryon/v1.6',
-    imageInput: 'REQUIRES EXACTLY 2 images, in order: the person/model photo first, the garment photo second. Not a list of interchangeable references.',
+    imageInput: 'REQUIRES EXACTLY 2 images, in order: the person/model photo first, the garment photo second. Merchants use the dedicated Virtual Try-On page (web/src/pages/VirtualTryOn.jsx) to supply these, not the generic custom-prompt studio.',
     params: ['category: tops | bottoms | one-pieces | auto (default auto)', 'mode: performance | balanced | quality (default balanced)'],
-  },
-  'bria-eraser': {
-    endpoint: 'fal-ai/bria/eraser',
-    imageInput: 'REQUIRES a mask_url marking the exact area to erase — this app has no mask-drawing UI yet, so jobs using this model fail immediately with a clear error instead of calling fal.',
-    params: ['preserve_alpha (default false)'],
   },
   'qwen-multi-angle': {
     endpoint: 'fal-ai/qwen-image-edit-2511-multiple-angles',
     imageInput: 'image_urls (array, always). Camera angle stays at this model\'s defaults (front view, eye-level, medium shot) — there\'s no angle-slider UI yet.',
     params: ['horizontal_angle / vertical_angle / zoom (all fixed at defaults — not exposed in the merchant UI yet)'],
-  },
-  'flux-lora-brand': {
-    endpoint: 'fal-ai/flux-lora',
-    imageInput: 'NONE — pure text-to-image. Supports a `loras` array of trained LoRA weight files, but this app has no LoRA-training pipeline, so it runs as base FLUX.1 [dev] without one.',
-    params: ['num_inference_steps (default 28)', 'guidance_scale (default 3.5)'],
-  },
-  'krea-2-lora-brand': {
-    endpoint: 'fal-ai/krea-2/turbo/lora',
-    imageInput: 'NONE — pure text-to-image. Same LoRA caveat as FLUX LoRA above — runs as base Krea 2 Turbo without a trained brand LoRA.',
-    params: ['enable_prompt_expansion (default false)'],
   },
 };
 
@@ -401,7 +359,7 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
             options={FAL_MODEL_OPTIONS}
             value={form.falModel}
             onChange={updateField('falModel')}
-            helpText="Every option here was verified against fal.ai's real schema. A few (marked TEXT-ONLY above) don't take an image at all — that's a real limitation of those models, not a bug — check ModelParameters below before assigning one to a feature that needs the merchant's photo used."
+            helpText="Every option here was verified against fal.ai's real schema — check ModelParameters below for each model's exact image-input requirements before assigning it to a feature."
           />
 
           <ModelParameters falModel={form.falModel} />

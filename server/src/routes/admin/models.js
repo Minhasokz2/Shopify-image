@@ -6,11 +6,13 @@ import { ALLOWED_MODEL_IDS } from '../../services/fal.js';
 const router = Router();
 
 // Scene-only for now (spec decision) — sourced from fal.js's ALLOWED_MODEL_IDS, which is
-// SCENE_MODEL_IDS (the 5 also usable by templates — see routes/admin/templates.js) PLUS the 15
+// SCENE_MODEL_IDS (the 5 also usable by templates — see routes/admin/templates.js) PLUS the 9
 // extended-catalog models (AI feature registry) that are Allowed-Models-only because their
 // request/response shapes don't fit the fixed-prompt template flow. Every one of these was
 // verified live against fal.ai's real schema before being added — Imagen 4 was evaluated and
-// rejected for having none (pure text-to-image), which is why it isn't in this list.
+// rejected for having none (pure text-to-image), which is why it isn't in this list; the same
+// reasoning removed the pure text-to-image banner/brand-asset models and the mask-required
+// eraser from this catalog entirely (see fal.js's EXTENDED_ALLOWED_MODELS comment).
 const KNOWN_SCENE_MODELS = ALLOWED_MODEL_IDS;
 
 const idSchema = z

@@ -14,6 +14,7 @@ import brandStyleRouter from './brandStyle.js';
 import referralsRouter from './referrals.js';
 import googleAuthRouter from './googleAuth.js';
 import imageOptimizerRouter from './imageOptimizer.js';
+import uploadsRouter from './uploads.js';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use(brandStyleRouter);
 router.use(referralsRouter);
 router.use(googleAuthRouter);
 router.use(imageOptimizerRouter);
+router.use(uploadsRouter);
 
 export default router;

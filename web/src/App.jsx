@@ -8,6 +8,7 @@ import TemplateGallery from './pages/TemplateGallery.jsx';
 import CustomPromptStudio from './pages/CustomPromptStudio.jsx';
 import PersonaBuilder from './pages/PersonaBuilder.jsx';
 import VideoStudio from './pages/VideoStudio.jsx';
+import VirtualTryOn from './pages/VirtualTryOn.jsx';
 import GenerationReview from './pages/GenerationReview.jsx';
 import BulkQueue from './pages/BulkQueue.jsx';
 import JobHistory from './pages/JobHistory.jsx';
@@ -73,6 +74,7 @@ export default function App() {
         <Route path="/custom-generate" element={<CustomPromptStudio />} />
         <Route path="/persona" element={<PersonaBuilder />} />
         <Route path="/video-studio" element={<VideoStudio />} />
+        <Route path="/try-on" element={<VirtualTryOn />} />
         <Route path="/review/:jobId" element={<GenerationReview />} />
         <Route path="/bulk" element={<BulkQueue />} />
         <Route path="/bulk/:batchId" element={<BulkQueue />} />

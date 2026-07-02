@@ -129,13 +129,12 @@ describe('generateScene: request shape per model (template flow)', () => {
   });
 });
 
-// The 15 extended Allowed-Models-only models (AI feature registry) — deliberately NOT part of
-// SCENE_MODEL_IDS/templates, since several of these shapes (masks, dual-image roles, no image
-// input, camera angles) don't fit the fixed-prompt template flow. See fal.js's
-// EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
+// The 9 extended Allowed-Models-only models (AI feature registry) — deliberately NOT part of
+// SCENE_MODEL_IDS/templates, since dual-image roles don't fit the fixed-prompt template flow. See
+// fal.js's EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
 describe('generateCustomScene: extended Allowed-Models catalog', () => {
-  it('exposes all 20 allowed models (5 scene + 15 extended)', () => {
-    expect(ALLOWED_MODEL_IDS).toHaveLength(20);
+  it('exposes all 14 allowed models (5 scene + 9 extended)', () => {
+    expect(ALLOWED_MODEL_IDS).toHaveLength(14);
     expect(ALLOWED_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
@@ -162,12 +161,6 @@ describe('generateCustomScene: extended Allowed-Models catalog', () => {
     await generateCustomScene({ model: 'bria-extract-object', cleanImageUrls: ['https://x/a.png'], prompt: 'the red shoe', numImages: 1 });
 
     expect(subscribe).toHaveBeenCalledWith('bria/extract-object', { input: { image_url: 'https://x/a.png', prompt: 'the red shoe' } });
-  });
-
-  it('text_only shape (gpt-image-2-banner): never references the selected images — prompt + num_images only', async () => {
-    await generateCustomScene({ model: 'gpt-image-2-banner', cleanImageUrls: ['https://x/a.png'], prompt: 'Summer sale banner', numImages: 2 });
-
-    expect(subscribe).toHaveBeenCalledWith('openai/gpt-image-2', { input: { prompt: 'Summer sale banner', num_images: 2 } });
   });
 
   it('image_urls_prompt shape (gemini-3-1-flash-retouch): same array+prompt+count shape as the original catalog', async () => {
@@ -205,29 +198,20 @@ describe('generateCustomScene: extended Allowed-Models catalog', () => {
     ).rejects.toThrow(UnsupportedCustomModelInputError);
     expect(subscribe).not.toHaveBeenCalled();
   });
-
-  it('mask_required shape (bria-eraser): rejects immediately with a clear error, never calls fal', async () => {
-    await expect(
-      generateCustomScene({ model: 'bria-eraser', cleanImageUrls: ['https://x/a.png'], prompt: '', numImages: 1 }),
-    ).rejects.toThrow(UnsupportedCustomModelInputError);
-    expect(subscribe).not.toHaveBeenCalled();
-  });
 });
 
 // Templates get a NARROWER slice of the extended catalog than Allowed Models does — only shapes
 // that fit "always exactly one image, always a fixed batch of 4" (see fal.js's
-// TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for why text_only/dual_image/mask_required are
-// excluded here even though they're valid Allowed-Models choices).
+// TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for why dual_image is excluded here even though it's a
+// valid Allowed-Models choice).
 describe('generateScene: template-compatible extended models', () => {
   it('exposes exactly 13 models for templates (5 original + 8 template-compatible extended)', () => {
     expect(TEMPLATE_MODEL_IDS).toHaveLength(13);
     expect(TEMPLATE_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
-  it('never includes a text_only, dual_image, or mask_required model', () => {
-    expect(TEMPLATE_MODEL_IDS).not.toEqual(
-      expect.arrayContaining(['gpt-image-2-banner', 'ideogram-v4-banner', 'flux-schnell-scene', 'flux-lora-brand', 'krea-2-lora-brand', 'fashn-tryon', 'bria-eraser']),
-    );
+  it('never includes a dual_image model', () => {
+    expect(TEMPLATE_MODEL_IDS).not.toEqual(expect.arrayContaining(['fashn-tryon']));
   });
 
   it('image_only shape (bria-remove-background): calls the endpoint 4 times for the template\'s fixed batch, single image_url only', async () => {
@@ -274,9 +258,9 @@ describe('generateScene: template-compatible extended models', () => {
     });
   });
 
-  it('throws for a text_only/dual_image/mask_required model even if passed directly (defense in depth)', async () => {
+  it('throws for a dual_image model even if passed directly (defense in depth)', async () => {
     await expect(
-      generateScene({ model: 'gpt-image-2-banner', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
-    ).rejects.toThrow('Unknown scene model: gpt-image-2-banner');
+      generateScene({ model: 'fashn-tryon', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
+    ).rejects.toThrow('Unknown scene model: fashn-tryon');
   });
 });

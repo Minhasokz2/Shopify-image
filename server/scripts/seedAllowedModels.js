@@ -51,14 +51,15 @@ const SCENE_MODELS = [
   },
 ].map((m) => ({ ...m, category: 'scene', active: true }));
 
-// Extended catalog — the 10-feature AI model registry (services/aiFeatureModels.js) restructured
-// as 15 individually-selectable Allowed Models (Allowed Models has no automatic-fallback concept,
-// so each fallback becomes its own standalone option). See services/fal.js's
-// EXTENDED_ALLOWED_MODELS doc comment for each model's real request-shape limitations —
-// several are text-only (ignore any selected image), one needs exactly 2 images, one needs a
-// mask this app's UI can't create yet. Credit costs still target profitability at the Pro pack's
-// $0.115/credit floor; several costs are per-megapixel/per-compute-second estimates, not fal's
-// own stated per-image price (flagged with "~" in ModelForm.jsx's margin calculator).
+// Extended catalog — the AI model registry (services/aiFeatureModels.js) restructured as
+// individually-selectable Allowed Models (Allowed Models has no automatic-fallback concept, so
+// each fallback becomes its own standalone option). See services/fal.js's EXTENDED_ALLOWED_MODELS
+// doc comment for each model's real request-shape limitations — one (fashn-tryon) needs exactly 2
+// images, driven by its own dedicated Virtual Try-On flow rather than the generic custom-prompt
+// studio. The pure text-to-image models and the mask-required eraser were dropped entirely —
+// see fal.js for why. Credit costs still target profitability at the Pro pack's $0.115/credit
+// floor; several costs are per-megapixel/per-compute-second estimates, not fal's own stated
+// per-image price (flagged with "~" in ModelForm.jsx's margin calculator).
 const EXTENDED_MODELS = [
   {
     id: 'bria-remove-background',
@@ -96,27 +97,6 @@ const EXTENDED_MODELS = [
     supportsMultiImage: true,
   },
   {
-    id: 'gpt-image-2-banner',
-    falModel: 'gpt-image-2-banner',
-    label: 'GPT Image 2 (Banner/Text) — text-only',
-    creditCost: 9, // real cost $1.00/image — highest-cost model in the catalog by far
-    supportsMultiImage: false,
-  },
-  {
-    id: 'ideogram-v4-banner',
-    falModel: 'ideogram-v4-banner',
-    label: 'Ideogram V4 (Banner/Text, budget) — text-only',
-    creditCost: 1, // real cost $0.01/image
-    supportsMultiImage: false,
-  },
-  {
-    id: 'flux-schnell-scene',
-    falModel: 'flux-schnell-scene',
-    label: 'FLUX Schnell (fast, budget) — text-only',
-    creditCost: 1, // ~$0.003/image (per-megapixel, estimated)
-    supportsMultiImage: false,
-  },
-  {
     id: 'topaz-upscale',
     falModel: 'topaz-upscale',
     label: 'Topaz Upscale',
@@ -133,17 +113,9 @@ const EXTENDED_MODELS = [
   {
     id: 'fashn-tryon',
     falModel: 'fashn-tryon',
-    label: 'FASHN Virtual Try-On (requires 2 images: person, then garment)',
+    label: 'FASHN Virtual Try-On (person + garment — see the Virtual Try-On page)',
     creditCost: 1, // real cost $0.075/image
     supportsMultiImage: true,
-  },
-  {
-    id: 'bria-eraser',
-    falModel: 'bria-eraser',
-    label: 'Bria Eraser (Watermark/Object Removal) — needs a mask, not usable yet',
-    creditCost: 1, // real cost $0.04/image
-    supportsMultiImage: false,
-    active: false, // requires a mask this app's UI cannot create — kept inactive until that exists
   },
   {
     id: 'qwen-multi-angle',
@@ -151,20 +123,6 @@ const EXTENDED_MODELS = [
     label: 'Qwen Multi-Angle Shots (fixed default angle)',
     creditCost: 1, // ~$0.035/image (per-megapixel, estimated)
     supportsMultiImage: true,
-  },
-  {
-    id: 'flux-lora-brand',
-    falModel: 'flux-lora-brand',
-    label: 'FLUX LoRA (Brand Assets) — text-only, no trained brand LoRA yet',
-    creditCost: 1, // ~$0.035/image (per-megapixel, estimated)
-    supportsMultiImage: false,
-  },
-  {
-    id: 'krea-2-lora-brand',
-    falModel: 'krea-2-lora-brand',
-    label: 'Krea 2 Turbo LoRA (Brand Assets, budget) — text-only, no trained brand LoRA yet',
-    creditCost: 1, // ~$0.01/image (per-megapixel, estimated)
-    supportsMultiImage: false,
   },
 ].map((m) => ({ active: true, ...m, category: 'scene' }));
 

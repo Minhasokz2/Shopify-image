@@ -48,20 +48,27 @@ const CUSTOM_SCENE_MODELS = {
 
 export const SCENE_MODEL_IDS = Object.keys(CUSTOM_SCENE_MODELS);
 
-// The 10-feature AI model registry (see aiFeatureModels.js for the full primary+fallback
-// rationale) added to Allowed Models as individually-selectable custom-prompt models — Allowed
-// Models has no automatic-fallback concept, so each fallback becomes its own standalone option
-// instead of an invisible retry. Deliberately kept OUT of CUSTOM_SCENE_MODELS/SCENE_MODEL_IDS
-// above: those feed routes/admin/templates.js's template picker too, and the fixed-prompt
-// template flow (generateScene, always exactly one image + always num_images: 4) cannot support
-// several of these shapes (masks, dual-image roles, no-image-at-all, camera-angle params).
-// Templates continue to offer only the original 5 models; only Allowed Models (custom-prompt
-// flow) gets the 15 below.
+// The AI feature model registry (see aiFeatureModels.js for the full primary+fallback rationale)
+// added to Allowed Models as individually-selectable custom-prompt models — Allowed Models has no
+// automatic-fallback concept, so each fallback becomes its own standalone option instead of an
+// invisible retry. Deliberately kept OUT of CUSTOM_SCENE_MODELS/SCENE_MODEL_IDS above: those feed
+// routes/admin/templates.js's template picker too, and the fixed-prompt template flow
+// (generateScene, always exactly one image + always num_images: 4) cannot support every shape
+// here (dual-image roles). Templates continue to offer only the original 5 plus the subset of
+// these that fits; only Allowed Models (custom-prompt flow) gets all of the below.
 //
 // Every endpoint_id and inputShape was verified against fal.ai's real schema before being added
 // (2 of the 10 originally-requested features' primaries — Retouch/Enhance's nano-banana-pro/edit
 // and Lifestyle Scene's flux-pro/kontext — are already in CUSTOM_SCENE_MODELS above, so they're
-// not duplicated here; this covers the other 15 distinct primary+fallback IDs).
+// not duplicated here).
+//
+// The pure text-to-image models (banner generation, brand-consistent LoRA assets) and the
+// mask-required watermark/object eraser were removed from this catalog entirely: the text-only
+// models silently ignored every merchant's selected product photo (the Imagen 4 failure mode),
+// and the eraser needs a mask this app has no UI to draw — neither was a usable feature, just a
+// confusing dead end in the model picker. Virtual Try-On (`fashn-tryon`, 'dual_image') stays, but
+// is now driven by a dedicated guided flow (web/src/pages/VirtualTryOn.jsx) instead of the generic
+// custom-prompt studio, since it needs two distinct image roles that flow can't label.
 //
 // `inputShape` decides how generateCustomScene below builds that model's request:
 //   - 'image_only'        → single image_url, no prompt/num_images param exists on this model.
@@ -72,20 +79,12 @@ export const SCENE_MODEL_IDS = Object.keys(CUSTOM_SCENE_MODELS);
 //   - 'image_and_prompt'  → single image_url + the merchant's prompt (e.g. "which object to cut
 //                           out"). Same no-native-batching situation as 'image_only' — looped.
 //   - 'image_urls_prompt' → same shape as the image_urls models above (array + prompt + count)
-//   - 'text_only'         → prompt only — NO image param at all. The merchant's selected image(s)
-//                           are NOT sent and NOT reflected in the output. Real limitation of these
-//                           models (pure text-to-image), not a bug; labeled clearly in the admin
-//                           UI (ModelForm.jsx) for exactly this reason.
 //   - 'dual_image'        → needs two DIFFERENT image roles (a person/model photo and a separate
 //                           garment photo), not a list of interchangeable references. Requires
 //                           the merchant to select exactly 2 images, in that order.
 //   - 'image_urls_angles' → image_urls array; camera angle stays at this model's defaults (front
 //                           view, eye-level, medium shot) since there's no angle-slider UI to set
 //                           horizontal/vertical/zoom — functions, just can't be aimed yet.
-//   - 'mask_required'     → this model REQUIRES a mask (the exact area to edit) that nothing in
-//                           this app can currently draw or supply. generateCustomScene throws a
-//                           clear, immediate error for this shape rather than sending fal a
-//                           request with no mask_url and surfacing a confusing raw API error.
 // `outputField` is 'images' (array, the default assumed by generateCustomScene's original 5
 // models) or 'image' (singular) — several of these return a single image, not an array; treating
 // them as arrays would throw on `.map` of undefined.
@@ -120,24 +119,6 @@ const EXTENDED_ALLOWED_MODELS = {
     outputField: 'images',
     supportsMultiImage: true,
   },
-  'gpt-image-2-banner': {
-    endpoint: 'openai/gpt-image-2',
-    inputShape: 'text_only',
-    outputField: 'images',
-    supportsMultiImage: false,
-  },
-  'ideogram-v4-banner': {
-    endpoint: 'ideogram/v4',
-    inputShape: 'text_only',
-    outputField: 'images',
-    supportsMultiImage: false,
-  },
-  'flux-schnell-scene': {
-    endpoint: 'fal-ai/flux/schnell',
-    inputShape: 'text_only',
-    outputField: 'images',
-    supportsMultiImage: false,
-  },
   'topaz-upscale': {
     endpoint: 'fal-ai/topaz/upscale/image',
     inputShape: 'image_only',
@@ -156,46 +137,21 @@ const EXTENDED_ALLOWED_MODELS = {
     outputField: 'images',
     supportsMultiImage: true, // exactly 2, not "as many as you like" — enforced in generateCustomScene
   },
-  'bria-eraser': {
-    endpoint: 'fal-ai/bria/eraser',
-    inputShape: 'mask_required',
-    outputField: 'image',
-    supportsMultiImage: false,
-  },
   'qwen-multi-angle': {
     endpoint: 'fal-ai/qwen-image-edit-2511-multiple-angles',
     inputShape: 'image_urls_angles',
     outputField: 'images',
     supportsMultiImage: true,
   },
-  'flux-lora-brand': {
-    endpoint: 'fal-ai/flux-lora',
-    inputShape: 'text_only',
-    outputField: 'images',
-    supportsMultiImage: false,
-  },
-  'krea-2-lora-brand': {
-    endpoint: 'fal-ai/krea-2/turbo/lora',
-    inputShape: 'text_only',
-    outputField: 'images',
-    supportsMultiImage: false,
-  },
 };
 
 export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS)];
 
-// Of the 15 extended models, only these 8 are safe to offer as a TEMPLATE's model — templates are
+// Of the 9 extended models, only these 8 are safe to offer as a TEMPLATE's model — templates are
 // admin-configured once and then silently applied to every future job that uses them, unlike
-// Allowed Models where the merchant explicitly picks (and sees the "TEXT-ONLY" label on) a model
-// themselves each time. Excluded on purpose, not by oversight:
-//   - 'text_only' models (banner/brand-asset — 5 models) would make EVERY job on that template
-//     silently ignore the merchant's product photo and generate an unrelated image — the exact
-//     Imagen 4 failure mode this table exists to prevent, now at the template level instead of a
-//     one-off merchant choice.
-//   - 'dual_image' (virtual try-on) needs two distinct image roles; a template only ever has one
-//     product image slot, so there's no second image to assign a role to.
-//   - 'mask_required' (eraser) needs a mask; templates have no more of a mask than custom-prompt
-//     jobs do.
+// Allowed Models where the merchant explicitly picks a model themselves each time. Excluded on
+// purpose, not by oversight: 'dual_image' (virtual try-on) needs two distinct image roles, and a
+// template only ever has one product image slot, so there's no second image to assign a role to.
 const TEMPLATE_COMPATIBLE_SHAPES = new Set(['image_only', 'image_and_prompt', 'image_urls_prompt', 'image_urls_angles']);
 const TEMPLATE_COMPATIBLE_EXTENDED_IDS = Object.entries(EXTENDED_ALLOWED_MODELS)
   .filter(([, config]) => TEMPLATE_COMPATIBLE_SHAPES.has(config.inputShape))
@@ -213,10 +169,10 @@ export async function removeBackground(imageUrl) {
 // a fixed batch of 4 — unlike the custom flow, template cost is flat/per-job, not per-image).
 // `productAttributes.color` is threaded into the prompt as an explicit product-fidelity lock.
 // Checks CUSTOM_SCENE_MODELS first (original 5, untouched logic), then the TEMPLATE-compatible
-// subset of EXTENDED_ALLOWED_MODELS (see TEMPLATE_COMPATIBLE_EXTENDED_IDS above) — text_only,
-// dual_image, and mask_required models are deliberately never reachable here even if somehow
-// assigned to a template's preferredModel, since routes/admin/templates.js's own enum already
-// keeps them out; this check is the second, defense-in-depth layer.
+// subset of EXTENDED_ALLOWED_MODELS (see TEMPLATE_COMPATIBLE_EXTENDED_IDS above) — dual_image
+// models are deliberately never reachable here even if somehow assigned to a template's
+// preferredModel, since routes/admin/templates.js's own enum already keeps them out; this check
+// is the second, defense-in-depth layer.
 export async function generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
   const sceneConfig = CUSTOM_SCENE_MODELS[model];
   if (sceneConfig) {
@@ -285,7 +241,7 @@ export class UnsupportedCustomModelInputError extends Error {
 // model, and controls how many images to generate (numImages) — cost scales with this in
 // creditLedger.js, so an accidental over-generation never silently overcharges OR undercharges.
 // Checks CUSTOM_SCENE_MODELS first (original 5, untouched logic/behavior) before falling through
-// to EXTENDED_ALLOWED_MODELS (the 15 newer models with more varied request/response shapes).
+// to EXTENDED_ALLOWED_MODELS (the 9 newer models with more varied request/response shapes).
 export async function generateCustomScene({ model, cleanImageUrls, prompt, numImages = 1 }) {
   const sceneConfig = CUSTOM_SCENE_MODELS[model];
   if (sceneConfig) {
@@ -325,13 +281,6 @@ function extractUrl(result, outputField) {
 }
 
 async function generateFromExtendedCatalog(config, model, { cleanImageUrls, prompt, numImages }) {
-  if (config.inputShape === 'mask_required') {
-    throw new UnsupportedCustomModelInputError(
-      `Model "${model}" requires a mask (the exact area to edit), which this app's UI cannot currently create. ` +
-        'This model cannot be used from the custom-prompt studio yet.',
-    );
-  }
-
   if (config.inputShape === 'dual_image') {
     if (cleanImageUrls.length !== 2) {
       throw new UnsupportedCustomModelInputError(
@@ -341,13 +290,6 @@ async function generateFromExtendedCatalog(config, model, { cleanImageUrls, prom
     const result = await fal.subscribe(config.endpoint, {
       input: { model_image: cleanImageUrls[0], garment_image: cleanImageUrls[1], num_samples: numImages },
     });
-    return result.data.images.map((img) => img.url);
-  }
-
-  if (config.inputShape === 'text_only') {
-    // No image_url/image_urls param exists on this endpoint at all — cleanImageUrls is
-    // intentionally unused here. See the EXTENDED_ALLOWED_MODELS doc comment above.
-    const result = await fal.subscribe(config.endpoint, { input: { prompt, num_images: numImages } });
     return result.data.images.map((img) => img.url);
   }
 

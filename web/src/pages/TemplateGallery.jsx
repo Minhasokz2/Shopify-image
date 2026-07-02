@@ -23,12 +23,28 @@ import { useCreditBalance } from '../hooks/useCreditBalance.js';
 // aren't configured with real credentials yet. Re-add { id: 'ugc', content: 'UGC' } and
 // { id: 'video', content: 'Video' } once they are; nothing else needs to change, the
 // backend/admin CMS for both still fully exists.
-const TABS = [{ id: 'scene', content: 'Scenes' }];
+//
+// Virtual Try-On isn't blocked on that — it runs on fal.ai (already configured) — but it isn't a
+// templatesRepo-backed template either: it needs a guided 2-image flow (person upload + garment
+// pick) a fixed prompt+model template row can't express. It gets its own tab that skips the
+// template grid entirely and hands off straight to VirtualTryOn.jsx.
+const TABS = [
+  { id: 'scene', content: 'Scenes' },
+  { id: 'tryon', content: 'Virtual Try-On' },
+];
 
 function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
     queryFn: () => apiClient.get('/api/templates'),
+  });
+}
+
+function useTryOnModel() {
+  return useQuery({
+    queryKey: ['models', 'scene'],
+    queryFn: () => apiClient.get('/api/models?category=scene'),
+    select: (data) => data.models?.find((m) => m.id === 'fashn-tryon') ?? null,
   });
 }
 
@@ -38,6 +54,7 @@ export default function TemplateGallery() {
   const selectedProducts = location.state?.selectedProducts ?? [];
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const { data, isLoading, error } = useTemplates();
+  const { data: tryOnModel } = useTryOnModel();
   const { data: creditData } = useCreditBalance();
   const [generateError, setGenerateError] = useState(null);
 
@@ -45,6 +62,7 @@ export default function TemplateGallery() {
   // metered plans — server-side this same distinction lives in creditLedger.assertSufficientCredits.
   const isUnlimited = creditData?.plan === 'unlimited';
   const balance = creditData?.creditBalance ?? null;
+  const tryOnCanAfford = isUnlimited || balance === null || !tryOnModel || balance >= tryOnModel.creditCost;
 
   const activeCategory = TABS[selectedTabIndex].id;
 
@@ -99,6 +117,17 @@ export default function TemplateGallery() {
     }
   };
 
+  const handleContinueToTryOn = () => {
+    setGenerateError(null);
+    const primaryProduct = selectedProducts[0];
+    if (!primaryProduct) {
+      setGenerateError('Select a product first.');
+      navigate('/products');
+      return;
+    }
+    navigate('/try-on', { state: { product: primaryProduct } });
+  };
+
   return (
     <Page
       title="Choose a template"
@@ -132,7 +161,37 @@ export default function TemplateGallery() {
         <Card padding="0">
           {TABS.length > 1 ? <Tabs tabs={TABS} selected={selectedTabIndex} onSelect={setSelectedTabIndex} /> : null}
           <Box padding="400">
-            {isLoading ? (
+            {activeCategory === 'tryon' ? (
+              <BlockStack gap="300">
+                <Text as="h3" fontWeight="medium">
+                  Virtual Try-On
+                </Text>
+                <Text as="p" tone="subdued">
+                  Upload a photo of a person and pick a garment product image — see the garment
+                  fitted onto the person, powered by FASHN.
+                </Text>
+                {tryOnModel ? (
+                  <InlineStack gap="150">
+                    <Badge tone={tryOnCanAfford ? undefined : 'critical'}>
+                      {`${tryOnModel.creditCost} credit${tryOnModel.creditCost === 1 ? '' : 's'}`}
+                    </Badge>
+                  </InlineStack>
+                ) : null}
+                {selectedProducts.length > 0 && !tryOnCanAfford ? (
+                  <Text as="span" variant="bodySm" tone="critical">
+                    Not enough credits ({balance} left)
+                  </Text>
+                ) : null}
+                <Box>
+                  <Button
+                    onClick={handleContinueToTryOn}
+                    disabled={selectedProducts.length === 0 || !tryOnCanAfford}
+                  >
+                    {!tryOnCanAfford ? 'Top up to use' : 'Continue'}
+                  </Button>
+                </Box>
+              </BlockStack>
+            ) : isLoading ? (
               <InlineStack align="center">
                 <Spinner accessibilityLabel="Loading templates" size="small" />
               </InlineStack>

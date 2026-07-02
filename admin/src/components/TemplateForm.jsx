@@ -5,14 +5,13 @@ import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
 // mismatch, this is just so the form only offers valid choices instead of letting the admin
 // discover the constraint from an error message.
 //
-// Scene = the original 5 (multi-image edit models) + 8 of the 15 extended AI-feature models whose
-// request shape fits a template (always exactly one image, always a fixed batch of 4). The other
-// 7 extended models are Allowed-Models-only, NOT offered here, on purpose:
-//   - 5 text-only models (banner/brand-asset) would make EVERY job on a template using them
-//     silently ignore the product photo — the Imagen 4 failure mode, at the template level.
-//   - Virtual Try-On needs 2 distinct image roles; a template only has one image slot.
-//   - The eraser model needs a mask this app's UI can't create.
-// 'imagen-4' is deliberately excluded too — pure text-to-image, same reasoning as above.
+// Scene = the original 5 (multi-image edit models) + 8 of the 9 extended AI-feature models whose
+// request shape fits a template (always exactly one image, always a fixed batch of 4). The 9th
+// extended model — Virtual Try-On — is Allowed-Models-only, NOT offered here: it needs 2 distinct
+// image roles (person + garment), and a template only has one image slot. It's driven instead by
+// its own dedicated page (web/src/pages/VirtualTryOn.jsx). 'imagen-4' is deliberately excluded
+// too — pure text-to-image, the same failure mode that got the other text-only models removed
+// from the catalog entirely.
 const MODELS_BY_CATEGORY = {
   scene: [
     'flux-kontext-max',
