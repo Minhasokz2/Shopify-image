@@ -24,8 +24,8 @@ const PRODUCT_CREATE_MEDIA_MUTATION = `#graphql
 // atomically guarantees a job can only ever be published once; if the Shopify call itself fails,
 // the claim is released so a subsequent retry isn't permanently locked out (spec Section 13/17:
 // generation pipelines must be idempotent — a retry must never double-publish).
-export async function publishJobToShopify({ session, jobId, productId }) {
-  const { alreadyPublished, job } = await claimPublish(jobId);
+export async function publishJobToShopify({ session, jobId, productId, approvedIndices = [] }) {
+  const { alreadyPublished, job } = await claimPublish(jobId, approvedIndices);
   if (alreadyPublished) {
     return { alreadyPublished: true, job };
   }

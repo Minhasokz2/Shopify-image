@@ -29,6 +29,102 @@ const REAL_COST_PER_IMAGE_USD = {
   'nano-banana-pro': 0.15,
 };
 
+// Real input schema for each FAL endpoint, verified live via mcp__fal-ai__get_model_schema —
+// not guessed. Purely informational (the pipeline always sends fixed defaults: prompt, the
+// merchant's image(s), and num_images — see services/fal.js's generateCustomScene), but the
+// admin should be able to see exactly what each underlying model is actually capable of before
+// deciding which to expose and at what price, rather than treating them as an opaque dropdown.
+const MODEL_PARAMETERS = {
+  'flux-kontext-max': {
+    endpoint: 'fal-ai/flux-pro/kontext/max',
+    imageInput: 'image_url (single) — a dedicated /multi endpoint handles more than one reference image',
+    params: [
+      'aspect_ratio (string, optional)',
+      'output_format: jpeg | png (default jpeg)',
+      'guidance_scale (number, default 3.5)',
+      'safety_tolerance: 1–6 (default 2, strictest)',
+      'seed (integer, optional — reproducible outputs)',
+    ],
+  },
+  'flux-kontext-pro': {
+    endpoint: 'fal-ai/flux-pro/kontext',
+    imageInput: 'image_url (single) — a dedicated /multi endpoint handles more than one reference image',
+    params: [
+      'aspect_ratio (string, optional)',
+      'output_format: jpeg | png (default jpeg)',
+      'guidance_scale (number, default 3.5)',
+      'safety_tolerance: 1–6 (default 2, strictest)',
+      'seed (integer, optional — reproducible outputs)',
+    ],
+  },
+  'seedream-v4-edit': {
+    endpoint: 'fal-ai/bytedance/seedream/v4/edit',
+    imageInput: 'image_urls (array, always) — up to 10 reference images in one request',
+    params: [
+      'image_size (object or preset, default 2048x2048)',
+      'max_images (default 1) — can return multiple variants per generation',
+      'enhance_prompt_mode: standard | fast',
+      'enable_safety_checker (default true)',
+      'seed (integer, optional — reproducible outputs)',
+    ],
+  },
+  'nano-banana': {
+    endpoint: 'fal-ai/gemini-25-flash-image/edit',
+    imageInput: 'image_urls (array, always)',
+    params: [
+      'aspect_ratio (default auto)',
+      'output_format: jpeg | png | webp (default png)',
+      'safety_tolerance: 1–6 (default 4, more permissive than FLUX)',
+      'seed (integer, optional — reproducible outputs)',
+    ],
+  },
+  'nano-banana-pro': {
+    endpoint: 'fal-ai/nano-banana-pro/edit',
+    imageInput: 'image_urls (array, always)',
+    params: [
+      'resolution: 1K | 2K | 4K (default 1K) — driver of this model’s higher cost',
+      'aspect_ratio (default auto)',
+      'output_format: jpeg | png | webp (default png)',
+      'safety_tolerance: 1–6 (default 4)',
+      'enable_web_search (default false) — lets the model ground generation in current web info',
+      'seed (integer, optional — reproducible outputs)',
+    ],
+  },
+};
+
+function ModelParameters({ falModel }) {
+  const info = MODEL_PARAMETERS[falModel];
+  if (!info) return null;
+
+  return (
+    <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+      <BlockStack gap="150">
+        <Text as="h3" fontWeight="medium">
+          Model parameters (from fal.ai's live schema)
+        </Text>
+        <Text as="span" variant="bodySm" tone="subdued">
+          {info.endpoint}
+        </Text>
+        <Text as="span" variant="bodySm">
+          Image input: {info.imageInput}
+        </Text>
+        <BlockStack gap="050">
+          {info.params.map((param) => (
+            <Text as="span" variant="bodySm" key={param}>
+              • {param}
+            </Text>
+          ))}
+        </BlockStack>
+        <Text as="span" variant="bodySm" tone="subdued">
+          These are the model's real capabilities — the generation pipeline currently only sends
+          prompt, your reference image(s), and the merchant's chosen image count, all other
+          parameters use fal.ai's defaults above.
+        </Text>
+      </BlockStack>
+    </Box>
+  );
+}
+
 // Revenue per credit, derived from the actual credit packs in server/src/services/billing.js:
 // Starter $9/50cr, Growth $29/200cr, Pro $69/600cr. Bulk packs pay merchants less per credit, so
 // the low end of this range (Pro pack) is the conservative number to check margin against — if a
@@ -168,6 +264,8 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
             onChange={updateField('falModel')}
             helpText="Scene models only — custom-prompt generation currently supports static product scenes. Every option here is verified to accept a reference image; models without one (like Imagen 4) are intentionally excluded."
           />
+
+          <ModelParameters falModel={form.falModel} />
 
           <TextField
             label="Credit cost per image"

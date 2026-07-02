@@ -70,32 +70,47 @@ describe('idempotency: claimPublish', () => {
     await firestore.collection('jobs').doc('publish-job').set({
       status: JOB_STATUS.SUCCEEDED,
       publishedAt: null,
-      variations: [{ url: 'https://example.com/1.png', approved: true, publishedToShopify: false }],
+      variations: [
+        { url: 'https://example.com/1.png', approved: false, publishedToShopify: false },
+        { url: 'https://example.com/2.png', approved: false, publishedToShopify: false },
+      ],
     });
   });
 
   it('claims publish on first call', async () => {
-    const result = await claimPublish('publish-job');
+    const result = await claimPublish('publish-job', [0]);
     expect(result.alreadyPublished).toBe(false);
 
     const doc = await firestore.collection('jobs').doc('publish-job').get();
     expect(doc.data().publishedAt).toBeTruthy();
   });
 
+  it('persists the caller-selected indices as approved on the job doc, ignoring any prior approved flags', async () => {
+    const result = await claimPublish('publish-job', [1]);
+    expect(result.job.variations).toEqual([
+      { url: 'https://example.com/1.png', approved: false, publishedToShopify: false },
+      { url: 'https://example.com/2.png', approved: true, publishedToShopify: false },
+    ]);
+
+    const doc = await firestore.collection('jobs').doc('publish-job').get();
+    expect(doc.data().variations[1].approved).toBe(true);
+    expect(doc.data().variations[0].approved).toBe(false);
+  });
+
   it('reports already-published on a second call without re-publishing', async () => {
-    await claimPublish('publish-job');
-    const second = await claimPublish('publish-job');
+    await claimPublish('publish-job', [0]);
+    const second = await claimPublish('publish-job', [1]);
     expect(second.alreadyPublished).toBe(true);
   });
 
   it('throws JobNotFoundError for a missing job', async () => {
-    await expect(claimPublish('does-not-exist')).rejects.toBeInstanceOf(JobNotFoundError);
+    await expect(claimPublish('does-not-exist', [0])).rejects.toBeInstanceOf(JobNotFoundError);
   });
 
   it('releasePublishClaim allows a subsequent retry after a failed publish call', async () => {
-    await claimPublish('publish-job');
+    await claimPublish('publish-job', [0]);
     await releasePublishClaim('publish-job');
-    const retry = await claimPublish('publish-job');
+    const retry = await claimPublish('publish-job', [0]);
     expect(retry.alreadyPublished).toBe(false);
   });
 });

@@ -37,15 +37,27 @@ router.get('/jobs/:jobId', async (req, res) => {
   return res.json({ job });
 });
 
-// POST /api/jobs/:jobId/publish — publish approved variations to Shopify product media.
+// POST /api/jobs/:jobId/publish — publish the merchant's selected variations to Shopify product
+// media. `approvedIndices` is authoritative here — it's the only place the review screen's
+// approve checkboxes are ever persisted (see claimPublish in services/idempotency.js).
+const publishRequestSchema = z.object({
+  productId: z.string().min(1),
+  approvedIndices: z.array(z.number().int().min(0)).default([]),
+});
+
 router.post('/jobs/:jobId/publish', async (req, res) => {
-  const { productId } = z.object({ productId: z.string().min(1) }).parse(req.body);
+  const { productId, approvedIndices } = publishRequestSchema.parse(req.body);
   const job = await jobsRepo.getById(req.params.jobId);
   if (!job || job.shopDomain !== req.shopDomain) {
     return res.status(404).json({ error: 'Job not found' });
   }
 
-  const result = await publishJobToShopify({ session: req.shopSession, jobId: req.params.jobId, productId });
+  const result = await publishJobToShopify({
+    session: req.shopSession,
+    jobId: req.params.jobId,
+    productId,
+    approvedIndices,
+  });
   return res.json(result);
 });
 

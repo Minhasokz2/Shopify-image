@@ -47,8 +47,15 @@ export async function claimJobCreation({ shopDomain, idempotencyKey, jobId, jobD
 
 // Publish idempotency is keyed on the job itself (jobId + "already published"), not a separate
 // client-supplied key — a job can only ever be published once, full stop.
-export async function claimPublish(jobId) {
+//
+// `approvedIndices` is the merchant's variation picks from the review screen. There is no
+// separate "save my approvals" step in the UI — the checkboxes are purely local React state
+// until this call — so the approval is applied to the job doc in the very same transaction that
+// claims the publish, and the returned `job.variations` reflects it immediately for the caller
+// to filter on, rather than the stale pre-approval array.
+export async function claimPublish(jobId, approvedIndices = []) {
   const jobRef = firestore.collection('jobs').doc(jobId);
+  const approvedSet = new Set(approvedIndices);
 
   return firestore.runTransaction(async (tx) => {
     const jobDoc = await tx.get(jobRef);
@@ -59,8 +66,13 @@ export async function claimPublish(jobId) {
       return { alreadyPublished: true, job: { id: jobId, ...job } };
     }
 
-    tx.update(jobRef, { publishedAt: FieldValue.serverTimestamp() });
-    return { alreadyPublished: false, job: { id: jobId, ...job } };
+    const variations = (job.variations ?? []).map((variation, index) => ({
+      ...variation,
+      approved: approvedSet.has(index),
+    }));
+
+    tx.update(jobRef, { publishedAt: FieldValue.serverTimestamp(), variations });
+    return { alreadyPublished: false, job: { id: jobId, ...job, variations } };
   });
 }
 

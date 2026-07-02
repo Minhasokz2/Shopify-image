@@ -46,7 +46,11 @@ export default function GenerationReview() {
   }, [job?.status, queryClient]);
 
   const publishMutation = useMutation({
-    mutationFn: () => apiClient.post(`/api/jobs/${jobId}/publish`, { productId: job.productId }),
+    mutationFn: () =>
+      apiClient.post(`/api/jobs/${jobId}/publish`, {
+        productId: job.productId,
+        approvedIndices: Array.from(approved),
+      }),
   });
 
   const toggleApproved = (index) => {
@@ -62,12 +66,6 @@ export default function GenerationReview() {
     setPublishError(null);
     setPublishResult(null);
     try {
-      // NOTE: the backend's `variations[].approved` flag defaults to false and is only ever set
-      // by the generation pipeline itself — there is currently no PATCH /api/jobs/:jobId endpoint
-      // to persist which variations the merchant approved here. This UI implements the full
-      // approve/publish flow with local state (as the intended UX), but until that persistence
-      // gap is closed server-side, this call will publish whatever the job record already has
-      // marked approved (typically nothing), not necessarily the checkboxes toggled below.
       const result = await publishMutation.mutateAsync();
       setPublishResult(result);
     } catch (err) {
