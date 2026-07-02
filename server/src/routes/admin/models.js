@@ -1,16 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { allowedModelsRepo } from '../../models/allowedModelsRepo.js';
-import { SCENE_MODEL_IDS } from '../../services/fal.js';
+import { ALLOWED_MODEL_IDS } from '../../services/fal.js';
 
 const router = Router();
 
-// Scene-only for now (spec decision) — sourced directly from fal.js's SCENE_MODEL_IDS, the same
-// list routes/admin/templates.js uses, so the allowed-models catalog and the template model
-// picker can never drift apart again. Every one of these was verified live against fal.ai's real
-// schema to have a genuine image-input parameter before being added — Imagen 4 was evaluated and
+// Scene-only for now (spec decision) — sourced from fal.js's ALLOWED_MODEL_IDS, which is
+// SCENE_MODEL_IDS (the 5 also usable by templates — see routes/admin/templates.js) PLUS the 15
+// extended-catalog models (AI feature registry) that are Allowed-Models-only because their
+// request/response shapes don't fit the fixed-prompt template flow. Every one of these was
+// verified live against fal.ai's real schema before being added — Imagen 4 was evaluated and
 // rejected for having none (pure text-to-image), which is why it isn't in this list.
-const KNOWN_SCENE_MODELS = SCENE_MODEL_IDS;
+const KNOWN_SCENE_MODELS = ALLOWED_MODEL_IDS;
 
 const idSchema = z
   .string()

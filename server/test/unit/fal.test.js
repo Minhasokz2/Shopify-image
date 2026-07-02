@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const subscribe = vi.fn(async () => ({ data: { images: [{ url: 'https://fal.example.com/out.png' }] } }));
 vi.mock('@fal-ai/client', () => ({ fal: { config: vi.fn(), subscribe } }));
 
-const { generateCustomScene, generateScene, SCENE_MODEL_IDS } = await import('../../src/services/fal.js');
+const { generateCustomScene, generateScene, SCENE_MODEL_IDS, ALLOWED_MODEL_IDS, UnsupportedCustomModelInputError } = await import(
+  '../../src/services/fal.js'
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -119,5 +121,90 @@ describe('generateScene: request shape per model (template flow)', () => {
     await expect(
       generateScene({ model: 'does-not-exist', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
     ).rejects.toThrow('Unknown scene model: does-not-exist');
+  });
+});
+
+// The 15 extended Allowed-Models-only models (AI feature registry) — deliberately NOT part of
+// SCENE_MODEL_IDS/templates, since several of these shapes (masks, dual-image roles, no image
+// input, camera angles) don't fit the fixed-prompt template flow. See fal.js's
+// EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
+describe('generateCustomScene: extended Allowed-Models catalog', () => {
+  it('exposes all 20 allowed models (5 scene + 15 extended)', () => {
+    expect(ALLOWED_MODEL_IDS).toHaveLength(20);
+    expect(ALLOWED_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
+  });
+
+  it('image_only shape (bria-remove-background): sends only image_url, no prompt/num_images param', async () => {
+    subscribe.mockResolvedValue({ data: { image: { url: 'https://fal.example.com/out.png' } } });
+
+    await generateCustomScene({ model: 'bria-remove-background', cleanImageUrls: ['https://x/a.png'], prompt: 'ignored', numImages: 1 });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/bria/background/remove', { input: { image_url: 'https://x/a.png' } });
+  });
+
+  it('image_only shape with numImages > 1: calls the endpoint that many times in parallel (no native batching) and returns one URL per call', async () => {
+    subscribe.mockResolvedValue({ data: { image: { url: 'https://fal.example.com/out.png' } } });
+
+    const urls = await generateCustomScene({ model: 'topaz-upscale', cleanImageUrls: ['https://x/a.png'], prompt: '', numImages: 3 });
+
+    expect(subscribe).toHaveBeenCalledTimes(3);
+    expect(urls).toEqual(['https://fal.example.com/out.png', 'https://fal.example.com/out.png', 'https://fal.example.com/out.png']);
+  });
+
+  it('image_and_prompt shape (bria-extract-object): sends image_url and the merchant prompt together', async () => {
+    subscribe.mockResolvedValue({ data: { image: { url: 'https://fal.example.com/cut.png' } } });
+
+    await generateCustomScene({ model: 'bria-extract-object', cleanImageUrls: ['https://x/a.png'], prompt: 'the red shoe', numImages: 1 });
+
+    expect(subscribe).toHaveBeenCalledWith('bria/extract-object', { input: { image_url: 'https://x/a.png', prompt: 'the red shoe' } });
+  });
+
+  it('text_only shape (gpt-image-2-banner): never references the selected images — prompt + num_images only', async () => {
+    await generateCustomScene({ model: 'gpt-image-2-banner', cleanImageUrls: ['https://x/a.png'], prompt: 'Summer sale banner', numImages: 2 });
+
+    expect(subscribe).toHaveBeenCalledWith('openai/gpt-image-2', { input: { prompt: 'Summer sale banner', num_images: 2 } });
+  });
+
+  it('image_urls_prompt shape (gemini-3-1-flash-retouch): same array+prompt+count shape as the original catalog', async () => {
+    await generateCustomScene({ model: 'gemini-3-1-flash-retouch', cleanImageUrls: ['https://x/a.png', 'https://x/b.png'], prompt: 'retouch', numImages: 1 });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/gemini-3.1-flash-image-preview/edit', {
+      input: { prompt: 'retouch', num_images: 1, image_urls: ['https://x/a.png', 'https://x/b.png'] },
+    });
+  });
+
+  it('image_urls_angles shape (qwen-multi-angle): merchant prompt goes to additional_prompt, not prompt', async () => {
+    await generateCustomScene({ model: 'qwen-multi-angle', cleanImageUrls: ['https://x/a.png'], prompt: 'extra detail', numImages: 1 });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/qwen-image-edit-2511-multiple-angles', {
+      input: { image_urls: ['https://x/a.png'], additional_prompt: 'extra detail', num_images: 1 },
+    });
+  });
+
+  it('dual_image shape (fashn-tryon): maps the first two images to model_image/garment_image and numImages to num_samples', async () => {
+    await generateCustomScene({
+      model: 'fashn-tryon',
+      cleanImageUrls: ['https://x/person.png', 'https://x/garment.png'],
+      prompt: '',
+      numImages: 2,
+    });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/fashn/tryon/v1.6', {
+      input: { model_image: 'https://x/person.png', garment_image: 'https://x/garment.png', num_samples: 2 },
+    });
+  });
+
+  it('dual_image shape: rejects with a clear error when not exactly 2 images are selected', async () => {
+    await expect(
+      generateCustomScene({ model: 'fashn-tryon', cleanImageUrls: ['https://x/a.png'], prompt: '', numImages: 1 }),
+    ).rejects.toThrow(UnsupportedCustomModelInputError);
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
+  it('mask_required shape (bria-eraser): rejects immediately with a clear error, never calls fal', async () => {
+    await expect(
+      generateCustomScene({ model: 'bria-eraser', cleanImageUrls: ['https://x/a.png'], prompt: '', numImages: 1 }),
+    ).rejects.toThrow(UnsupportedCustomModelInputError);
+    expect(subscribe).not.toHaveBeenCalled();
   });
 });

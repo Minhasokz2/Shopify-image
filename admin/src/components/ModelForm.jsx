@@ -12,22 +12,73 @@ const FAL_MODEL_OPTIONS = [
   { value: 'seedream-v4-edit', label: 'Seedream V4 Edit — cheapest multi-image editor (up to 10 refs)' },
   { value: 'nano-banana', label: 'Nano Banana (Gemini 2.5 Flash Image) — balanced quality/cost, multi-image' },
   { value: 'nano-banana-pro', label: 'Nano Banana Pro — premium/4K tier, multi-image' },
+  // --- Extended catalog (AI feature registry) — see server/src/services/fal.js's
+  // EXTENDED_ALLOWED_MODELS doc comment for the full request-shape rationale. Several of these
+  // have real limitations flagged directly in the label so an admin doesn't have to open
+  // ModelParameters to find out before assigning a price.
+  { value: 'bria-remove-background', label: 'Bria Background Remove — single image, no prompt used' },
+  { value: 'birefnet', label: 'BiRefNet Background Remove — single image, no prompt used' },
+  { value: 'bria-extract-object', label: 'Bria Extract Object — prompt names the object to cut out' },
+  { value: 'rembg', label: 'Rembg Background Remove (budget) — single image, no prompt used' },
+  { value: 'gemini-3-1-flash-retouch', label: 'Gemini 3.1 Flash Image (retouch/enhance) — multi-image' },
+  { value: 'gpt-image-2-banner', label: 'GPT Image 2 (banner/text) — TEXT-ONLY, ignores selected images' },
+  { value: 'ideogram-v4-banner', label: 'Ideogram V4 (banner/text, budget) — TEXT-ONLY, ignores selected images' },
+  { value: 'flux-schnell-scene', label: 'FLUX Schnell (fast, budget) — TEXT-ONLY, ignores selected images' },
+  { value: 'topaz-upscale', label: 'Topaz Upscale — single image, no prompt used' },
+  { value: 'seedvr-upscale', label: 'SeedVR2 Upscale (budget) — single image, no prompt used' },
+  { value: 'fashn-tryon', label: 'FASHN Virtual Try-On — requires EXACTLY 2 images (person, then garment)' },
+  { value: 'bria-eraser', label: 'Bria Eraser (watermark/object removal) — requires a mask; not usable yet' },
+  { value: 'qwen-multi-angle', label: 'Qwen Multi-Angle Shots — fixed default camera angle (no angle control yet)' },
+  { value: 'flux-lora-brand', label: 'FLUX LoRA (brand assets) — TEXT-ONLY, no trained brand LoRA support yet' },
+  { value: 'krea-2-lora-brand', label: 'Krea 2 Turbo LoRA (brand assets, budget) — TEXT-ONLY, no trained brand LoRA support yet' },
 ];
 
-// All 5 catalog models support multi-image reference structurally (FLUX via a dedicated
-// /multi endpoint, the others because their schema always takes an image array) — this flag is
-// still admin-editable in case a model should be advertised as single-image-only for UX reasons.
-const MULTI_IMAGE_CAPABLE = new Set(FAL_MODEL_OPTIONS.map((o) => o.value));
+// Only models that genuinely combine more than one merchant-selected image into one generation.
+// Text-only models (banner/brand-asset) and single-image models (background removal, upscale)
+// are NOT multi-image capable even though they're valid model choices — see fal.js's
+// EXTENDED_ALLOWED_MODELS `supportsMultiImage` field, mirrored here.
+const MULTI_IMAGE_CAPABLE = new Set([
+  'flux-kontext-max',
+  'flux-kontext-pro',
+  'seedream-v4-edit',
+  'nano-banana',
+  'nano-banana-pro',
+  'gemini-3-1-flash-retouch',
+  'fashn-tryon', // exactly 2, not "as many as you like" — see helpText below
+  'qwen-multi-angle',
+]);
 
 // Real per-image USD cost, verified live via fal.ai's pricing API (mcp__fal-ai__get_pricing) —
-// not estimated. Used only for the margin calculator below; never sent to the server.
+// not estimated. Used only for the margin calculator below; never sent to the server. Costs
+// billed per-megapixel or per-compute-second are converted to an approximate per-image figure
+// (assuming a ~1 megapixel output / a few seconds of compute) — flagged as approximate in the
+// margin calculator itself, not a guarantee.
 const REAL_COST_PER_IMAGE_USD = {
   'flux-kontext-max': 0.08,
   'flux-kontext-pro': 0.04,
   'seedream-v4-edit': 0.03,
   'nano-banana': 0.0398,
   'nano-banana-pro': 0.15,
+  'bria-remove-background': 0.018,
+  birefnet: 0.0025,
+  'bria-extract-object': 0.02,
+  rembg: 0.003,
+  'gemini-3-1-flash-retouch': 0.08,
+  'gpt-image-2-banner': 1.0,
+  'ideogram-v4-banner': 0.01,
+  'flux-schnell-scene': 0.003,
+  'topaz-upscale': 0.04,
+  'seedvr-upscale': 0.004,
+  'fashn-tryon': 0.075,
+  'bria-eraser': 0.04,
+  'qwen-multi-angle': 0.035,
+  'flux-lora-brand': 0.035,
+  'krea-2-lora-brand': 0.01,
 };
+
+// True for costs converted from a per-megapixel/per-compute-second unit rather than fal's own
+// stated per-image/per-generation price — shown as "~" in the margin calculator.
+const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle', 'flux-lora-brand', 'krea-2-lora-brand']);
 
 // Real input schema for each FAL endpoint, verified live via mcp__fal-ai__get_model_schema —
 // not guessed. Purely informational (the pipeline always sends fixed defaults: prompt, the
@@ -90,6 +141,89 @@ const MODEL_PARAMETERS = {
       'seed (integer, optional — reproducible outputs)',
     ],
   },
+  'bria-remove-background': {
+    endpoint: 'fal-ai/bria/background/remove',
+    imageInput: 'image_url (single). No prompt/num_images — merchant\'s prompt text is not used.',
+    params: ['sync_mode (default false)'],
+  },
+  birefnet: {
+    endpoint: 'fal-ai/birefnet',
+    imageInput: 'image_url (single). No prompt/num_images.',
+    params: ['Same model already used internally for the template flow\'s background-removal step.'],
+  },
+  'bria-extract-object': {
+    endpoint: 'bria/extract-object',
+    imageInput: 'image_url (single) + the merchant\'s prompt names the object to isolate (e.g. "the red shoe").',
+    params: [
+      'remove_background (default false) — refines the cutout edge with an extra background-removal pass',
+      'autocrop (default false) — tightens the output canvas to the extracted object',
+    ],
+  },
+  rembg: {
+    endpoint: 'fal-ai/imageutils/rembg',
+    imageInput: 'image_url (single). No prompt/num_images.',
+    params: ['crop_to_bbox (default false)'],
+  },
+  'gemini-3-1-flash-retouch': {
+    endpoint: 'fal-ai/gemini-3.1-flash-image-preview/edit',
+    imageInput: 'image_urls (array, always) — Google\'s newer "Nano Banana 2" model.',
+    params: [
+      'resolution: 0.5K | 1K | 2K | 4K (default 1K)',
+      'aspect_ratio (default auto)',
+      'safety_tolerance: 1–6 (default 4)',
+      'seed (integer, optional)',
+    ],
+  },
+  'gpt-image-2-banner': {
+    endpoint: 'openai/gpt-image-2',
+    imageInput: 'NONE — pure text-to-image. The merchant\'s selected product image(s) are never sent to this model.',
+    params: ['quality: auto | low | medium | high (default high — the main driver of its cost)', 'image_size (default landscape_4_3)'],
+  },
+  'ideogram-v4-banner': {
+    endpoint: 'ideogram/v4',
+    imageInput: 'NONE — pure text-to-image, strong at rendering readable text/typography (posters, banners).',
+    params: ['rendering_speed: TURBO | BALANCED | QUALITY (default BALANCED)', 'expansion_model: None | Medium | Large prompt-expansion tier'],
+  },
+  'flux-schnell-scene': {
+    endpoint: 'fal-ai/flux/schnell',
+    imageInput: 'NONE — pure text-to-image, the fastest/cheapest FLUX tier.',
+    params: ['num_inference_steps (default 4 — this model is built for very few steps)'],
+  },
+  'topaz-upscale': {
+    endpoint: 'fal-ai/topaz/upscale/image',
+    imageInput: 'image_url (single). No prompt/num_images.',
+    params: ['upscale_factor (default 2)', 'model: Standard V2 | CGI | Wonder | Redefine | … (default Standard V2)', 'face_enhancement (default true)'],
+  },
+  'seedvr-upscale': {
+    endpoint: 'fal-ai/seedvr/upscale/image',
+    imageInput: 'image_url (single). No prompt/num_images.',
+    params: ['upscale_factor (default 2) or target_resolution: 720p | 1080p | 1440p | 2160p'],
+  },
+  'fashn-tryon': {
+    endpoint: 'fal-ai/fashn/tryon/v1.6',
+    imageInput: 'REQUIRES EXACTLY 2 images, in order: the person/model photo first, the garment photo second. Not a list of interchangeable references.',
+    params: ['category: tops | bottoms | one-pieces | auto (default auto)', 'mode: performance | balanced | quality (default balanced)'],
+  },
+  'bria-eraser': {
+    endpoint: 'fal-ai/bria/eraser',
+    imageInput: 'REQUIRES a mask_url marking the exact area to erase — this app has no mask-drawing UI yet, so jobs using this model fail immediately with a clear error instead of calling fal.',
+    params: ['preserve_alpha (default false)'],
+  },
+  'qwen-multi-angle': {
+    endpoint: 'fal-ai/qwen-image-edit-2511-multiple-angles',
+    imageInput: 'image_urls (array, always). Camera angle stays at this model\'s defaults (front view, eye-level, medium shot) — there\'s no angle-slider UI yet.',
+    params: ['horizontal_angle / vertical_angle / zoom (all fixed at defaults — not exposed in the merchant UI yet)'],
+  },
+  'flux-lora-brand': {
+    endpoint: 'fal-ai/flux-lora',
+    imageInput: 'NONE — pure text-to-image. Supports a `loras` array of trained LoRA weight files, but this app has no LoRA-training pipeline, so it runs as base FLUX.1 [dev] without one.',
+    params: ['num_inference_steps (default 28)', 'guidance_scale (default 3.5)'],
+  },
+  'krea-2-lora-brand': {
+    endpoint: 'fal-ai/krea-2/turbo/lora',
+    imageInput: 'NONE — pure text-to-image. Same LoRA caveat as FLUX LoRA above — runs as base Krea 2 Turbo without a trained brand LoRA.',
+    params: ['enable_prompt_expansion (default false)'],
+  },
 };
 
 function ModelParameters({ falModel }) {
@@ -116,9 +250,8 @@ function ModelParameters({ falModel }) {
           ))}
         </BlockStack>
         <Text as="span" variant="bodySm" tone="subdued">
-          These are the model's real capabilities — the generation pipeline currently only sends
-          prompt, your reference image(s), and the merchant's chosen image count, all other
-          parameters use fal.ai's defaults above.
+          These are the model's real capabilities — every parameter not explicitly built into this
+          model's request shape (see "Image input" above) uses fal.ai's own default.
         </Text>
       </BlockStack>
     </Box>
@@ -166,7 +299,7 @@ function MarginCalculator({ falModel, creditCost }) {
         </InlineStack>
         <InlineStack gap="400" wrap>
           <Text as="span" variant="bodySm">
-            Real FAL cost: <strong>${realCost.toFixed(4)}</strong>
+            {APPROXIMATE_COST_MODELS.has(falModel) ? 'Approx. FAL cost' : 'Real FAL cost'}: <strong>${realCost.toFixed(4)}</strong>
           </Text>
           <Text as="span" variant="bodySm">
             Merchant revenue at {credits} credit{credits === 1 ? '' : 's'}: <strong>${revenueLow.toFixed(3)}–${revenueHigh.toFixed(3)}</strong>
@@ -180,6 +313,12 @@ function MarginCalculator({ falModel, creditCost }) {
           Revenue range reflects the Starter ($9/50 credits = $0.18/credit) through Pro ($69/600 credits =
           $0.115/credit) packs — the low end is the conservative number to check profitability against.
         </Text>
+        {APPROXIMATE_COST_MODELS.has(falModel) ? (
+          <Text as="span" variant="bodySm" tone="subdued">
+            fal.ai bills this model per-megapixel or per-compute-second rather than per-image — the figure above
+            assumes a typical ~1 megapixel output / a few seconds of compute, so treat it as an estimate.
+          </Text>
+        ) : null}
       </BlockStack>
     </Box>
   );
@@ -262,7 +401,7 @@ export function ModelForm({ model, onSubmit, onClose, submitting, error }) {
             options={FAL_MODEL_OPTIONS}
             value={form.falModel}
             onChange={updateField('falModel')}
-            helpText="Scene models only — custom-prompt generation currently supports static product scenes. Every option here is verified to accept a reference image; models without one (like Imagen 4) are intentionally excluded."
+            helpText="Every option here was verified against fal.ai's real schema. A few (marked TEXT-ONLY above) don't take an image at all — that's a real limitation of those models, not a bug — check ModelParameters below before assigning one to a feature that needs the merchant's photo used."
           />
 
           <ModelParameters falModel={form.falModel} />
