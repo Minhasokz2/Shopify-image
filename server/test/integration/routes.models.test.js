@@ -57,6 +57,7 @@ beforeEach(async () => {
       state: 'test',
       isOnline: false,
       accessToken: 'shpat_totally_real',
+      expires: new Date(Date.now() + 60 * 60 * 1000),
     }),
   );
   vi.spyOn(shopify.api.clients.Graphql.prototype, 'request').mockResolvedValue({ data: {}, headers: {} });

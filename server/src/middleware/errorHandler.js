@@ -10,12 +10,12 @@ import { logger } from '../lib/logger.js';
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(error, req, res, next) {
   // A 401/403 from Shopify's Admin API means the stored offline token is dead — revoked (shop
-  // reinstalled, token rotated) or rejected outright (the July 2 incident: tokens minted via the
-  // legacy authorization-code grant started 403ing wholesale after the app switched to App Store
-  // distribution). Deleting the stored session makes the very next request mint a fresh token
-  // via token exchange (see verifySessionToken) instead of failing forever on the dead one.
-  // Evicting on a "legitimate" 403 (e.g. a missing access scope) is harmless: the re-exchanged
-  // session carries the same grants, so it just costs one extra exchange round trip.
+  // reinstalled, token rotated), or genuinely expired despite verifySessionToken's proactive
+  // expiry check and refresh (a race, or a refresh-token failure that fell through anyway).
+  // Deleting the stored session makes the very next request mint a fresh expiring token via
+  // token exchange (see verifySessionToken) instead of failing forever on the dead one. Evicting
+  // on a "legitimate" 403 (e.g. a missing access scope) is harmless: the re-exchanged session
+  // carries the same grants, so it just costs one extra exchange round trip.
   if (error instanceof HttpResponseError && [401, 403].includes(error.response?.code) && req.shopDomain) {
     shopify.config.sessionStorage
       .deleteSession(`offline_${req.shopDomain}`)
