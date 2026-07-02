@@ -124,7 +124,8 @@ export default function VirtualTryOn() {
         <Layout.Section>
           {!product ? (
             <Banner tone="warning" title="No product selected">
-              <p>Go back and select a product with a garment image first.</p>
+              <p>Select a product with a garment image to continue.</p>
+              <Button onClick={() => navigate('/products', { state: { returnTo: 'tryon' } })}>Select a product</Button>
             </Banner>
           ) : null}
           {uploadError ? (

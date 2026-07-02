@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Page,
   Card,
@@ -31,8 +31,19 @@ function useProducts(cursor) {
   });
 }
 
+// Shared by every entry point that needs "pick a product, then do something with it" — the
+// default (no returnTo) goes to the original Products-nav-first flow (/generate-method); a
+// `returnTo` sends the merchant back to whichever page sent them here instead, now with a
+// product actually selected. `returnTo` can arrive via router state (in-SPA navigate() calls,
+// e.g. from TemplateGallery when no product was pre-selected) or a `?mode=` query param (the
+// Virtual Try-On nav shortcut in App.jsx, since NavMenu's portal doesn't reliably preserve
+// router state — a query param survives because it's part of the URL itself).
 export default function ProductPicker() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const returnTo = location.state?.returnTo ?? searchParams.get('mode') ?? null;
+  const pendingTemplateId = location.state?.pendingTemplateId ?? null;
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [allProducts, setAllProducts] = useState([]);
@@ -79,14 +90,31 @@ export default function ProductPicker() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id));
 
   const handleContinue = () => {
+    if (returnTo === 'tryon') {
+      navigate('/try-on', { state: { product: selectedProducts[0] } });
+      return;
+    }
+    if (returnTo === 'templates') {
+      navigate('/templates', { state: { selectedProducts, autoGenerateTemplateId: pendingTemplateId } });
+      return;
+    }
     navigate('/generate-method', { state: { selectedProducts } });
   };
 
   return (
     <Page
       title="Select products"
-      subtitle="Choose one or more products to generate new visuals for"
-      backAction={{ content: 'Dashboard', onAction: () => navigate('/') }}
+      subtitle={
+        returnTo === 'tryon'
+          ? 'Choose the product whose image you want to use as the garment for Virtual Try-On'
+          : returnTo === 'templates'
+            ? 'Choose the product to apply your selected template to'
+            : 'Choose one or more products to generate new visuals for'
+      }
+      backAction={{
+        content: returnTo === 'templates' ? 'Templates' : 'Dashboard',
+        onAction: () => navigate(returnTo === 'templates' ? '/templates' : '/'),
+      }}
     >
       <BlockStack gap="400">
         <StickyActionBar edge="top">
