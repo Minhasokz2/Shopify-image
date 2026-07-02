@@ -5,13 +5,14 @@ import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
 // mismatch, this is just so the form only offers valid choices instead of letting the admin
 // discover the constraint from an error message.
 //
-// Scene = the original 5 (multi-image edit models) + 8 of the 9 extended AI-feature models whose
-// request shape fits a template (always exactly one image, always a fixed batch of 4). The 9th
-// extended model — Virtual Try-On — is Allowed-Models-only, NOT offered here: it needs 2 distinct
-// image roles (person + garment), and a template only has one image slot. It's driven instead by
-// its own dedicated page (web/src/pages/VirtualTryOn.jsx). 'imagen-4' is deliberately excluded
-// too — pure text-to-image, the same failure mode that got the other text-only models removed
-// from the catalog entirely.
+// Scene = the original 5 (multi-image edit models) + 10 of the 11 extended AI-feature models
+// whose request shape fits a template (always exactly one image, always a fixed batch of 4). The
+// 11th extended model — Virtual Try-On — is Allowed-Models-only, NOT offered here: it needs 2
+// distinct image roles (person + garment), and a template only has one image slot. It's driven
+// instead by its own dedicated page (web/src/pages/VirtualTryOn.jsx). 'imagen-4' is deliberately
+// excluded too — pure text-to-image, the same failure mode that got the brand-asset LoRA models
+// removed from the catalog entirely (GPT Image 2 and Ideogram V4 below use their genuinely
+// image-aware edit endpoints, not the text-only originals).
 const MODELS_BY_CATEGORY = {
   scene: [
     'flux-kontext-max',
@@ -24,6 +25,8 @@ const MODELS_BY_CATEGORY = {
     'bria-extract-object',
     'rembg',
     'gemini-3-1-flash-retouch',
+    'gpt-image-2-banner',
+    'ideogram-v4-banner',
     'topaz-upscale',
     'seedvr-upscale',
     'qwen-multi-angle',

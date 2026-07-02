@@ -21,6 +21,11 @@ const FAL_MODEL_OPTIONS = [
   { value: 'bria-extract-object', label: 'Bria Extract Object — prompt names the object to cut out' },
   { value: 'rembg', label: 'Rembg Background Remove (budget) — single image, no prompt used' },
   { value: 'gemini-3-1-flash-retouch', label: 'Gemini 3.1 Flash Image (retouch/enhance) — multi-image' },
+  // GPT Image 2 and Ideogram V4's plain text-to-image endpoints were checked and rejected (no
+  // image input at all) — these use their separate edit/image-to-image endpoints instead, which
+  // genuinely take the merchant's photo plus a prompt (verified live via get_model_schema).
+  { value: 'gpt-image-2-banner', label: 'GPT Image 2 (banner/text edit) — attach image(s) + prompt, multi-image' },
+  { value: 'ideogram-v4-banner', label: 'Ideogram V4 (banner/text edit, budget) — attach a single image + prompt' },
   { value: 'topaz-upscale', label: 'Topaz Upscale — single image, no prompt used' },
   { value: 'seedvr-upscale', label: 'SeedVR2 Upscale (budget) — single image, no prompt used' },
   { value: 'fashn-tryon', label: 'FASHN Virtual Try-On — requires EXACTLY 2 images (person, then garment); driven by its own Virtual Try-On page, not the custom-prompt studio' },
@@ -28,8 +33,8 @@ const FAL_MODEL_OPTIONS = [
 ];
 
 // Only models that genuinely combine more than one merchant-selected image into one generation.
-// Text-only models (banner/brand-asset) and single-image models (background removal, upscale)
-// are NOT multi-image capable even though they're valid model choices — see fal.js's
+// Single-image models (background removal, upscale, Ideogram's image-to-image) are NOT
+// multi-image capable even though they're valid model choices — see fal.js's
 // EXTENDED_ALLOWED_MODELS `supportsMultiImage` field, mirrored here.
 const MULTI_IMAGE_CAPABLE = new Set([
   'flux-kontext-max',
@@ -38,6 +43,7 @@ const MULTI_IMAGE_CAPABLE = new Set([
   'nano-banana',
   'nano-banana-pro',
   'gemini-3-1-flash-retouch',
+  'gpt-image-2-banner',
   'fashn-tryon', // exactly 2, not "as many as you like" — see helpText below
   'qwen-multi-angle',
 ]);
@@ -58,6 +64,8 @@ const REAL_COST_PER_IMAGE_USD = {
   'bria-extract-object': 0.02,
   rembg: 0.003,
   'gemini-3-1-flash-retouch': 0.08,
+  'gpt-image-2-banner': 1.0,
+  'ideogram-v4-banner': 0.01,
   'topaz-upscale': 0.04,
   'seedvr-upscale': 0.004,
   'fashn-tryon': 0.075,
@@ -161,6 +169,16 @@ const MODEL_PARAMETERS = {
       'safety_tolerance: 1–6 (default 4)',
       'seed (integer, optional)',
     ],
+  },
+  'gpt-image-2-banner': {
+    endpoint: 'openai/gpt-image-2/edit',
+    imageInput: 'image_urls (array, required) — a real edit endpoint, not the plain text-to-image gpt-image-2. Good for adding banner text/typography onto an existing product photo.',
+    params: ['quality: auto | low | medium | high (default high — the main driver of its cost)', 'image_size (default auto — inferred from the input image)', 'mask_url (optional — not used by this app)'],
+  },
+  'ideogram-v4-banner': {
+    endpoint: 'ideogram/v4/image-to-image',
+    imageInput: 'image_url (single, required) — a real image-to-image endpoint, not the plain text-to-image ideogram/v4. Restyles/adds text to an existing product photo.',
+    params: ['rendering_speed: TURBO | BALANCED | QUALITY (default BALANCED)', 'strength (default 0.8) — how much to transform the input image', 'expansion_model: None | Medium | Large prompt-expansion tier'],
   },
   'topaz-upscale': {
     endpoint: 'fal-ai/topaz/upscale/image',

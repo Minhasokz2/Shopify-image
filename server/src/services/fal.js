@@ -62,13 +62,16 @@ export const SCENE_MODEL_IDS = Object.keys(CUSTOM_SCENE_MODELS);
 // and Lifestyle Scene's flux-pro/kontext — are already in CUSTOM_SCENE_MODELS above, so they're
 // not duplicated here).
 //
-// The pure text-to-image models (banner generation, brand-consistent LoRA assets) and the
-// mask-required watermark/object eraser were removed from this catalog entirely: the text-only
-// models silently ignored every merchant's selected product photo (the Imagen 4 failure mode),
-// and the eraser needs a mask this app has no UI to draw — neither was a usable feature, just a
-// confusing dead end in the model picker. Virtual Try-On (`fashn-tryon`, 'dual_image') stays, but
-// is now driven by a dedicated guided flow (web/src/pages/VirtualTryOn.jsx) instead of the generic
-// custom-prompt studio, since it needs two distinct image roles that flow can't label.
+// The pure text-to-image brand-asset LoRA models and the mask-required watermark/object eraser
+// were removed from this catalog entirely: neither was a usable feature — the LoRA models
+// silently ignored every merchant's selected product photo (the Imagen 4 failure mode) with no
+// image-aware alternative available, and the eraser needs a mask this app has no UI to draw. The
+// banner-generation models (GPT Image 2, Ideogram V4) looked like the same problem at first, but
+// each has a separate, genuinely image-aware edit/image-to-image endpoint (verified live via
+// get_model_schema) that takes the merchant's photo and a prompt together — those are what's
+// registered below, not the text-only originals. Virtual Try-On (`fashn-tryon`, 'dual_image')
+// also stays, but is driven by a dedicated guided flow (web/src/pages/VirtualTryOn.jsx) instead of
+// the generic custom-prompt studio, since it needs two distinct image roles that flow can't label.
 //
 // `inputShape` decides how generateCustomScene below builds that model's request:
 //   - 'image_only'        → single image_url, no prompt/num_images param exists on this model.
@@ -119,6 +122,23 @@ const EXTENDED_ALLOWED_MODELS = {
     outputField: 'images',
     supportsMultiImage: true,
   },
+  // The plain 'openai/gpt-image-2' and 'ideogram/v4' endpoints (checked and removed earlier) are
+  // pure text-to-image — but both have separate, genuinely image-aware edit endpoints verified
+  // live via get_model_schema: gpt-image-2/edit requires image_urls + prompt, and
+  // v4/image-to-image requires a single image_url + prompt. These are the real "attach a photo,
+  // write a prompt to add banner text / restyle it" models — not the text-only originals.
+  'gpt-image-2-banner': {
+    endpoint: 'openai/gpt-image-2/edit',
+    inputShape: 'image_urls_prompt',
+    outputField: 'images',
+    supportsMultiImage: true,
+  },
+  'ideogram-v4-banner': {
+    endpoint: 'ideogram/v4/image-to-image',
+    inputShape: 'image_and_prompt',
+    outputField: 'images',
+    supportsMultiImage: false,
+  },
   'topaz-upscale': {
     endpoint: 'fal-ai/topaz/upscale/image',
     inputShape: 'image_only',
@@ -147,7 +167,7 @@ const EXTENDED_ALLOWED_MODELS = {
 
 export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS)];
 
-// Of the 9 extended models, only these 8 are safe to offer as a TEMPLATE's model — templates are
+// Of the 11 extended models, only these 10 are safe to offer as a TEMPLATE's model — templates are
 // admin-configured once and then silently applied to every future job that uses them, unlike
 // Allowed Models where the merchant explicitly picks a model themselves each time. Excluded on
 // purpose, not by oversight: 'dual_image' (virtual try-on) needs two distinct image roles, and a
@@ -241,7 +261,7 @@ export class UnsupportedCustomModelInputError extends Error {
 // model, and controls how many images to generate (numImages) — cost scales with this in
 // creditLedger.js, so an accidental over-generation never silently overcharges OR undercharges.
 // Checks CUSTOM_SCENE_MODELS first (original 5, untouched logic/behavior) before falling through
-// to EXTENDED_ALLOWED_MODELS (the 9 newer models with more varied request/response shapes).
+// to EXTENDED_ALLOWED_MODELS (the 11 newer models with more varied request/response shapes).
 export async function generateCustomScene({ model, cleanImageUrls, prompt, numImages = 1 }) {
   const sceneConfig = CUSTOM_SCENE_MODELS[model];
   if (sceneConfig) {
@@ -276,8 +296,11 @@ async function generateFromSceneCatalog(config, model, { cleanImageUrls, prompt,
   return result.data.images.map((img) => img.url);
 }
 
+// Used only inside the "call the endpoint once per requested image" loops below (image_only /
+// image_and_prompt shapes) — each call is expected to produce exactly one result, whether the
+// endpoint's own response shape is a singular `image` or a 1-element `images` array.
 function extractUrl(result, outputField) {
-  return outputField === 'image' ? result.data.image.url : null;
+  return outputField === 'image' ? result.data.image.url : result.data.images[0].url;
 }
 
 async function generateFromExtendedCatalog(config, model, { cleanImageUrls, prompt, numImages }) {

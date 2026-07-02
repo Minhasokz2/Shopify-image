@@ -129,12 +129,12 @@ describe('generateScene: request shape per model (template flow)', () => {
   });
 });
 
-// The 9 extended Allowed-Models-only models (AI feature registry) — deliberately NOT part of
+// The 11 extended Allowed-Models-only models (AI feature registry) — deliberately NOT part of
 // SCENE_MODEL_IDS/templates, since dual-image roles don't fit the fixed-prompt template flow. See
 // fal.js's EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
 describe('generateCustomScene: extended Allowed-Models catalog', () => {
-  it('exposes all 14 allowed models (5 scene + 9 extended)', () => {
-    expect(ALLOWED_MODEL_IDS).toHaveLength(14);
+  it('exposes all 16 allowed models (5 scene + 11 extended)', () => {
+    expect(ALLOWED_MODEL_IDS).toHaveLength(16);
     expect(ALLOWED_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
@@ -179,6 +179,23 @@ describe('generateCustomScene: extended Allowed-Models catalog', () => {
     });
   });
 
+  it('image_urls_prompt shape (gpt-image-2-banner): uses the real edit endpoint, not the text-only original', async () => {
+    await generateCustomScene({ model: 'gpt-image-2-banner', cleanImageUrls: ['https://x/a.png'], prompt: 'Summer sale banner', numImages: 2 });
+
+    expect(subscribe).toHaveBeenCalledWith('openai/gpt-image-2/edit', {
+      input: { prompt: 'Summer sale banner', num_images: 2, image_urls: ['https://x/a.png'] },
+    });
+  });
+
+  it('image_and_prompt shape (ideogram-v4-banner): uses the real image-to-image endpoint, singular image url, returns first of the images array', async () => {
+    subscribe.mockResolvedValue({ data: { images: [{ url: 'https://fal.example.com/banner.png' }] } });
+
+    const urls = await generateCustomScene({ model: 'ideogram-v4-banner', cleanImageUrls: ['https://x/a.png'], prompt: 'add "50% off"', numImages: 1 });
+
+    expect(subscribe).toHaveBeenCalledWith('ideogram/v4/image-to-image', { input: { image_url: 'https://x/a.png', prompt: 'add "50% off"' } });
+    expect(urls).toEqual(['https://fal.example.com/banner.png']);
+  });
+
   it('dual_image shape (fashn-tryon): maps the first two images to model_image/garment_image and numImages to num_samples', async () => {
     await generateCustomScene({
       model: 'fashn-tryon',
@@ -205,8 +222,8 @@ describe('generateCustomScene: extended Allowed-Models catalog', () => {
 // TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for why dual_image is excluded here even though it's a
 // valid Allowed-Models choice).
 describe('generateScene: template-compatible extended models', () => {
-  it('exposes exactly 13 models for templates (5 original + 8 template-compatible extended)', () => {
-    expect(TEMPLATE_MODEL_IDS).toHaveLength(13);
+  it('exposes exactly 15 models for templates (5 original + 10 template-compatible extended)', () => {
+    expect(TEMPLATE_MODEL_IDS).toHaveLength(15);
     expect(TEMPLATE_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
@@ -256,6 +273,36 @@ describe('generateScene: template-compatible extended models', () => {
     expect(subscribe).toHaveBeenCalledWith('fal-ai/qwen-image-edit-2511-multiple-angles', {
       input: { image_urls: ['https://x/clean.png'], additional_prompt: expect.stringContaining('studio scene'), num_images: 4 },
     });
+  });
+
+  it('image_urls_prompt shape (gpt-image-2-banner): sends the built scene prompt with num_images: 4', async () => {
+    await generateScene({
+      model: 'gpt-image-2-banner',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'banner text',
+      productAttributes: {},
+    });
+
+    expect(subscribe).toHaveBeenCalledWith('openai/gpt-image-2/edit', {
+      input: { prompt: expect.stringContaining('banner text'), num_images: 4, image_urls: ['https://x/clean.png'] },
+    });
+  });
+
+  it('image_and_prompt shape (ideogram-v4-banner): calls the endpoint 4 times, extracting the first url from each images-array response', async () => {
+    subscribe.mockResolvedValue({ data: { images: [{ url: 'https://fal.example.com/banner.png' }] } });
+
+    const urls = await generateScene({
+      model: 'ideogram-v4-banner',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'banner text',
+      productAttributes: {},
+    });
+
+    expect(subscribe).toHaveBeenCalledTimes(4);
+    expect(subscribe).toHaveBeenCalledWith('ideogram/v4/image-to-image', {
+      input: { image_url: 'https://x/clean.png', prompt: expect.stringContaining('banner text') },
+    });
+    expect(urls).toEqual(Array(4).fill('https://fal.example.com/banner.png'));
   });
 
   it('throws for a dual_image model even if passed directly (defense in depth)', async () => {

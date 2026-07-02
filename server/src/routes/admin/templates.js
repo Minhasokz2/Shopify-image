@@ -8,7 +8,7 @@ const router = Router();
 // Scene models come from fal.js's TEMPLATE_MODEL_IDS — the original 5 shared with the
 // custom-prompt allowed-models catalog, PLUS the subset of the extended AI-feature catalog whose
 // request shape actually fits a template (always exactly one image, always a fixed batch of 4).
-// Deliberately narrower than Allowed Models' full 14: dual-image models (templates have only one
+// Deliberately narrower than Allowed Models' full 16: dual-image models (templates have only one
 // image slot) are excluded — see fal.js's TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for the full
 // reasoning.
 const MODELS_BY_CATEGORY = {

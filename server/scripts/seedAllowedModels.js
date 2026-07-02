@@ -56,10 +56,12 @@ const SCENE_MODELS = [
 // each fallback becomes its own standalone option). See services/fal.js's EXTENDED_ALLOWED_MODELS
 // doc comment for each model's real request-shape limitations — one (fashn-tryon) needs exactly 2
 // images, driven by its own dedicated Virtual Try-On flow rather than the generic custom-prompt
-// studio. The pure text-to-image models and the mask-required eraser were dropped entirely —
-// see fal.js for why. Credit costs still target profitability at the Pro pack's $0.115/credit
-// floor; several costs are per-megapixel/per-compute-second estimates, not fal's own stated
-// per-image price (flagged with "~" in ModelForm.jsx's margin calculator).
+// studio. The pure text-to-image brand-asset LoRA models and the mask-required eraser were
+// dropped entirely — see fal.js for why. GPT Image 2 and Ideogram V4 use their genuinely
+// image-aware edit/image-to-image endpoints here, not the text-only originals that were briefly
+// removed and then corrected. Credit costs still target profitability at the Pro pack's
+// $0.115/credit floor; several costs are per-megapixel/per-compute-second estimates, not fal's
+// own stated per-image price (flagged with "~" in ModelForm.jsx's margin calculator).
 const EXTENDED_MODELS = [
   {
     id: 'bria-remove-background',
@@ -95,6 +97,20 @@ const EXTENDED_MODELS = [
     label: 'Gemini 3.1 Flash Image (Retouch/Enhance)',
     creditCost: 1, // real cost $0.08/image
     supportsMultiImage: true,
+  },
+  {
+    id: 'gpt-image-2-banner',
+    falModel: 'gpt-image-2-banner',
+    label: 'GPT Image 2 (Banner/Text Edit) — attach image(s) + prompt',
+    creditCost: 9, // real cost $1.00/image — highest-cost model in the catalog by far
+    supportsMultiImage: true,
+  },
+  {
+    id: 'ideogram-v4-banner',
+    falModel: 'ideogram-v4-banner',
+    label: 'Ideogram V4 (Banner/Text Edit, budget) — attach an image + prompt',
+    creditCost: 1, // real cost $0.01/image
+    supportsMultiImage: false,
   },
   {
     id: 'topaz-upscale',
