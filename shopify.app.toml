@@ -1,9 +1,11 @@
 # Shopify app configuration for VisualKit.
-# client_id and application_url are placeholders — replace via `shopify app config link`
-# against a real Partner Dashboard app record, or by editing this file directly before deploy.
+# client_id is still a placeholder — it's a real credential this environment doesn't have
+# access to. Replace it via `shopify app config link` against the real Partner Dashboard app
+# record (pulls client_id automatically), or paste it in by hand before running the Shopify CLI
+# against this file. application_url/redirect_urls below are the real production values.
 name = "VisualKit"
 client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
-application_url = "https://your-app-domain.example.com"
+application_url = "https://splugin.linkgrab.io"
 embedded = true
 
 [access_scopes]
@@ -11,7 +13,7 @@ scopes = "read_products,write_products,read_product_listings"
 
 [auth]
 redirect_urls = [
-  "https://your-app-domain.example.com/auth/callback"
+  "https://splugin.linkgrab.io/auth/callback"
 ]
 
 # Pinned to match server/src/config/shopify.js's ADMIN_API_VERSION. Keep these in sync — the
