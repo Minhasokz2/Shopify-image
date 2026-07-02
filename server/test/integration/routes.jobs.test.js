@@ -182,4 +182,27 @@ describe('GET /api/jobs/:jobId', () => {
     expect(res.status).toBe(200);
     expect(res.body.job.status).toBe('succeeded');
   });
+
+  // Real Firestore Timestamps (unlike this suite's fake, which resolves serverTimestamp() to a
+  // plain Date) serialize to {_seconds, _nanoseconds} with no toJSON — new Date(...) on that in
+  // the browser produces "Invalid Date". Shaping createdAt like a real Timestamp here proves the
+  // res.json patch in app.js actually converts it to an ISO string the client can parse.
+  it('serializes a Firestore-Timestamp-shaped createdAt to an ISO string, not {_seconds, _nanoseconds}', async () => {
+    const fakeTimestamp = {
+      _seconds: 1783000000,
+      _nanoseconds: 0,
+      toDate: () => new Date(1783000000 * 1000),
+    };
+    await firestore
+      .collection('jobs')
+      .doc('timestamp-job')
+      .set({ shopDomain: SHOP, status: 'succeeded', variations: [], createdAt: fakeTimestamp });
+    const app = createApp();
+
+    const res = await request(app).get('/api/jobs/timestamp-job').set(await authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body.job.createdAt).toBe(new Date(1783000000 * 1000).toISOString());
+    expect(new Date(res.body.job.createdAt).toString()).not.toBe('Invalid Date');
+  });
 });

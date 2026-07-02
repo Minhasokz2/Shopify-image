@@ -133,15 +133,22 @@ export default function JobHistory() {
                   return (
                     <IndexTable.Row id={job.id} key={job.id} position={index}>
                       <IndexTable.Cell>
-                        {job.contentType === 'video' && previewUrl ? (
-                          <video src={previewUrl} style={{ width: 40, height: 40, objectFit: 'cover' }} muted />
-                        ) : (
-                          <Thumbnail
-                            source={previewUrl || job.productImageUrl || ''}
-                            alt={`Job ${job.id}`}
-                            size="small"
-                          />
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/review/${job.id}`)}
+                          aria-label="View this generation"
+                          style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', display: 'block' }}
+                        >
+                          {job.contentType === 'video' && previewUrl ? (
+                            <video src={previewUrl} style={{ width: 40, height: 40, objectFit: 'cover' }} muted />
+                          ) : (
+                            <Thumbnail
+                              source={previewUrl || job.productImageUrl || ''}
+                              alt={`Job ${job.id}`}
+                              size="small"
+                            />
+                          )}
+                        </button>
                       </IndexTable.Cell>
                       <IndexTable.Cell>{job.contentType}</IndexTable.Cell>
                       <IndexTable.Cell>{job.templateId}</IndexTable.Cell>
@@ -160,6 +167,9 @@ export default function JobHistory() {
                             </Button>
                           ) : (
                             <>
+                              <Button size="slim" onClick={() => navigate(`/review/${job.id}`)}>
+                                View
+                              </Button>
                               <Button size="slim" disabled={!previewUrl} onClick={() => handleRedownload(job)}>
                                 Re-download
                               </Button>

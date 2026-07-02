@@ -7,6 +7,7 @@ import { shopify } from './config/shopify.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { serializeTimestamps } from './lib/serializeTimestamps.js';
 import authRouter from './routes/auth.js';
 import googleAuthRouter from './routes/googleAuth.js';
 import webhooksRouter from './routes/webhooks.js';
@@ -24,6 +25,15 @@ export function createApp() {
 
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
   app.get('/health', (req, res) => res.status(200).send('ok'));
+
+  // Every route below eventually res.json()s data that traced back to a Firestore doc — patching
+  // res.json once here (rather than converting Timestamps at each repo call site) guarantees no
+  // route can ship a raw Timestamp by accident.
+  app.use((req, res, next) => {
+    const originalJson = res.json.bind(res);
+    res.json = (body) => originalJson(serializeTimestamps(body));
+    next();
+  });
 
   // Public privacy policy — linked from the Shopify App Store listing, so it must be reachable
   // without any Shopify/App Bridge/Google auth. Registered before the SPA catch-all below, which
