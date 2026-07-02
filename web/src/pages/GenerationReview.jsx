@@ -19,8 +19,15 @@ import { BeforeAfterSlider } from '../components/BeforeAfterSlider.jsx';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { GenerationProgress } from '../components/GenerationProgress.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
+import { downloadFile } from '../utils/download.js';
+import { inferFormatFromUrl } from '../utils/imageFormat.js';
 
 const IN_PROGRESS_STATUSES = new Set(['pending', 'processing']);
+
+function variationFilename(jobId, index, isVideo, url) {
+  const ext = isVideo ? 'mp4' : inferFormatFromUrl(url) || 'png';
+  return `visualkit-${jobId}-${index + 1}.${ext}`;
+}
 
 export default function GenerationReview() {
   const { jobId } = useParams();
@@ -33,6 +40,9 @@ export default function GenerationReview() {
   const [approved, setApproved] = useState(() => new Set());
   const [publishError, setPublishError] = useState(null);
   const [publishResult, setPublishResult] = useState(null);
+
+  const [compressSelected, setCompressSelected] = useState(() => new Set());
+  const [compressError, setCompressError] = useState(null);
 
   const isVideo = job?.contentType === 'video';
 
@@ -74,6 +84,44 @@ export default function GenerationReview() {
       queryClient.invalidateQueries({ queryKey: ['job', jobId] });
     } catch (err) {
       setPublishError(err.message || 'Failed to publish approved variations.');
+    }
+  };
+
+  const toggleCompress = (index) => {
+    setCompressSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  // Reuses the exact same Compress Image pipeline (quota check, WebP conversion, batch progress
+  // page) as the dedicated feature — a generated result is just another sourceUrl to it, no
+  // special-casing needed. Not tied to any product/media, so replaceInPlace never applies here.
+  const compressMutation = useMutation({
+    mutationFn: () =>
+      apiClient.post('/api/image-optimizer/convert', {
+        idempotencyKey: crypto.randomUUID(),
+        images: Array.from(compressSelected).map((index) => {
+          const url = job.variations[index].url;
+          return { sourceUrl: url, inputFormat: inferFormatFromUrl(url) || 'png', isAnimatedGif: false };
+        }),
+        outputFormats: ['webp'],
+      }),
+  });
+
+  const handleCompress = async () => {
+    setCompressError(null);
+    try {
+      const result = await compressMutation.mutateAsync();
+      navigate(`/image-optimizer/batches/${result.batchId}`);
+    } catch (err) {
+      if (err.statusCode === 402) {
+        setCompressError('Daily free conversion limit reached. Upgrade Compress Image to unlimited from Settings & Plans.');
+      } else {
+        setCompressError(err.message || 'Failed to start compression.');
+      }
     }
   };
 
@@ -131,6 +179,12 @@ export default function GenerationReview() {
           />
         ) : null}
 
+        {compressError ? (
+          <Banner tone="critical" title="Couldn't start compression" onDismiss={() => setCompressError(null)}>
+            <p>{compressError}</p>
+          </Banner>
+        ) : null}
+
         {job && job.status === 'succeeded' ? (
           <>
             <Card>
@@ -171,11 +225,37 @@ export default function GenerationReview() {
                           </Text>
                         ) : null}
                       </InlineStack>
+
+                      {!isVideo ? (
+                        <Checkbox
+                          label="Select to compress (WebP)"
+                          checked={compressSelected.has(index)}
+                          onChange={() => toggleCompress(index)}
+                        />
+                      ) : null}
+
+                      <Button
+                        onClick={() => downloadFile(variation.url, variationFilename(jobId, index, isVideo, variation.url))}
+                      >
+                        Download
+                      </Button>
                     </BlockStack>
                   </Card>
                 </Box>
               ))}
             </InlineStack>
+
+            {!isVideo ? (
+              <InlineStack align="end">
+                <Button
+                  disabled={compressSelected.size === 0}
+                  loading={compressMutation.isPending}
+                  onClick={handleCompress}
+                >
+                  {`Compress selected to WebP (${compressSelected.size})`}
+                </Button>
+              </InlineStack>
+            ) : null}
 
             {job.productId ? (
               <InlineStack align="end">
@@ -193,7 +273,7 @@ export default function GenerationReview() {
               // was uploaded rather than picked from the catalog) — nothing to publish media to.
               <Text as="p" variant="bodySm" tone="subdued">
                 This result isn't tied to a product in your store, so it can't be published to a
-                listing — you can still view it above and save the image directly.
+                listing — use the Download button above to save it instead.
               </Text>
             )}
           </>

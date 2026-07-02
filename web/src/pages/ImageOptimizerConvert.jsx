@@ -23,21 +23,12 @@ import {
 import { apiClient } from '../api/client.js';
 import { useImageOptimizerImages, useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 import { StickyActionBar } from '../components/StickyActionBar.jsx';
+import { inferFormatFromUrl } from '../utils/imageFormat.js';
 
 const TABS = [
   { id: 'store', content: 'Store Images' },
   { id: 'upload', content: 'Upload' },
 ];
-
-function inferFormatFromUrl(url) {
-  try {
-    const clean = url.split('?')[0];
-    const ext = clean.split('.').pop().toLowerCase();
-    return ext === 'jpeg' ? 'jpg' : ext;
-  } catch {
-    return '';
-  }
-}
 
 // Merchant selects one or more product images (from the store catalog) and/or uploads fresh
 // files, picks output format(s) and quality, then converts — mirrors ProductPicker's

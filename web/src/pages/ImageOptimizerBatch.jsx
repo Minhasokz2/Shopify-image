@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { BlockStack, Badge, Banner, Card, InlineStack, Layout, Page, ProgressBar, Spinner, Text, Thumbnail } from '@shopify/polaris';
+import { BlockStack, Badge, Banner, Button, Card, InlineStack, Layout, Page, ProgressBar, Spinner, Text, Thumbnail } from '@shopify/polaris';
 import { useConversionBatchPolling } from '../hooks/useImageOptimizer.js';
+import { downloadFile } from '../utils/download.js';
 
 const STATUS_TONE = {
   queued: 'info',
@@ -22,23 +23,38 @@ function ConversionJobRow({ job }) {
 
   return (
     <Card padding="300">
-      <InlineStack gap="300" blockAlign="center" wrap={false}>
-        <Thumbnail source={primaryOutput?.url || job.inputUrl} alt="" size="small" />
-        <BlockStack gap="050">
-          <InlineStack gap="200" blockAlign="center">
-            <Text as="span" fontWeight="semibold">
-              {(job.inputFormat ?? '').toUpperCase()} → {(job.outputFormats ?? []).join(' + ').toUpperCase()}
+      <InlineStack align="space-between" blockAlign="center" wrap={false}>
+        <InlineStack gap="300" blockAlign="center" wrap={false}>
+          <Thumbnail source={primaryOutput?.url || job.inputUrl} alt="" size="small" />
+          <BlockStack gap="050">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="span" fontWeight="semibold">
+                {(job.inputFormat ?? '').toUpperCase()} → {(job.outputFormats ?? []).join(' + ').toUpperCase()}
+              </Text>
+              <Badge tone={tone}>{job.status}</Badge>
+            </InlineStack>
+            <Text as="span" variant="bodySm" tone="subdued">
+              {job.status === 'done'
+                ? `${formatBytes(job.originalBytes)} → ${formatBytes(job.originalBytes - (job.savedBytes ?? 0))} (saved ${formatBytes(job.savedBytes)})`
+                : job.status === 'failed'
+                  ? job.errorMessage || 'Something went wrong.'
+                  : 'Waiting…'}
             </Text>
-            <Badge tone={tone}>{job.status}</Badge>
+          </BlockStack>
+        </InlineStack>
+
+        {job.status === 'done' && job.outputAssets?.length > 0 ? (
+          <InlineStack gap="150">
+            {job.outputAssets.map((asset) => (
+              <Button
+                key={asset.format}
+                onClick={() => downloadFile(asset.url, `converted-${job.id}.${asset.format}`)}
+              >
+                {`Download ${asset.format.toUpperCase()}`}
+              </Button>
+            ))}
           </InlineStack>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {job.status === 'done'
-              ? `${formatBytes(job.originalBytes)} → ${formatBytes(job.originalBytes - (job.savedBytes ?? 0))} (saved ${formatBytes(job.savedBytes)})`
-              : job.status === 'failed'
-                ? job.errorMessage || 'Something went wrong.'
-                : 'Waiting…'}
-          </Text>
-        </BlockStack>
+        ) : null}
       </InlineStack>
     </Card>
   );
