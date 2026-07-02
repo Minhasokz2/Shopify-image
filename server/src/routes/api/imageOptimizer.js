@@ -212,7 +212,7 @@ router.post('/image-optimizer/jobs/:jobId/restore', async (req, res) => {
 });
 
 // POST /api/image-optimizer/billing/subscribe — the $2.99/mo add-on, independent of the
-// generation-credits plan (see /api/billing/subscribe in subscription.js).
+// generation-credits plan (see /api/billing/purchase and /api/billing/custom-purchase for that).
 router.post('/image-optimizer/billing/subscribe', async (req, res) => {
   const returnUrl = `${env.SHOPIFY_APP_URL}/api/image-optimizer/billing/confirm`;
   const confirmationUrl = await createImageOptimizerSubscription({

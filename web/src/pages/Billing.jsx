@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { BlockStack, Banner, Button, Card, InlineStack, Layout, Page, Text } from '@shopify/polaris';
+import { useEffect, useState } from 'react';
+import { BlockStack, Banner, Button, Card, InlineStack, Layout, Page, Text, TextField } from '@shopify/polaris';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { apiClient } from '../api/client.js';
 
@@ -15,11 +16,53 @@ function redirectToConfirmation(confirmationUrl) {
   window.top.location.href = confirmationUrl;
 }
 
+// Debounced live quote for the custom-amount purchase below — recomputed server-side on every
+// pause in typing using the exact same "guaranteed >= 50% margin, worst active model" math the
+// actual purchase uses (server/src/services/creditPricing.js), so what's previewed here is
+// always what gets charged, never a client-side guess that could drift from it.
+function useCustomCreditEstimate(amountUSD) {
+  const [estimate, setEstimate] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const amount = Number(amountUSD);
+    if (!amountUSD || !Number.isFinite(amount) || amount <= 0) {
+      setEstimate(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await apiClient.get(`/api/billing/custom-purchase/estimate?amountUSD=${amount}`);
+        setEstimate(result);
+        setError(null);
+      } catch (err) {
+        setEstimate(null);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [amountUSD]);
+
+  return { estimate, error, loading };
+}
+
 export default function Billing() {
+  const queryClient = useQueryClient();
   const { data: credits, isLoading: creditsLoading } = useCreditBalance();
   const [pendingPackId, setPendingPackId] = useState(null);
-  const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState(null);
+
+  const [customAmount, setCustomAmount] = useState('');
+  const { estimate, error: estimateError, loading: estimateLoading } = useCustomCreditEstimate(customAmount);
+  const [buyingCustom, setBuyingCustom] = useState(false);
 
   const handlePurchase = async (packId) => {
     setError(null);
@@ -33,17 +76,25 @@ export default function Billing() {
     }
   };
 
-  const handleSubscribe = async () => {
+  const handleBuyCustom = async () => {
     setError(null);
-    setSubscribing(true);
+    setBuyingCustom(true);
     try {
-      const data = await apiClient.post('/api/billing/subscribe', {});
+      const data = await apiClient.post('/api/billing/custom-purchase', { amountUSD: Number(customAmount) });
       redirectToConfirmation(data.confirmationUrl);
     } catch (err) {
       setError(err.message);
-      setSubscribing(false);
+      setBuyingCustom(false);
     }
   };
+
+  // The balance shown elsewhere in the app is cached — refresh it once the merchant lands back
+  // here after approving a charge, same as GenerationReview does after a job succeeds.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('confirmed') === 'true') {
+      queryClient.invalidateQueries({ queryKey: ['credits'] });
+    }
+  }, [queryClient]);
 
   return (
     <Page title="Billing">
@@ -106,19 +157,56 @@ export default function Billing() {
 
         <Layout.Section>
           <Card>
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingSm">
-                  Unlimited
+            <BlockStack gap="300">
+              <Text as="h3" variant="headingSm">
+                Buy a custom amount
+              </Text>
+              <Text as="p" tone="subdued">
+                Enter any amount between $5 and $2,000 — credits are priced live so this always
+                stays profitable, no matter which model you spend them on.
+              </Text>
+
+              <TextField
+                label="Amount (USD)"
+                type="number"
+                min={5}
+                max={2000}
+                prefix="$"
+                value={customAmount}
+                onChange={setCustomAmount}
+                autoComplete="off"
+              />
+
+              {estimateLoading ? (
+                <Text as="span" tone="subdued">
+                  Calculating…
                 </Text>
-                <Text as="p" tone="subdued">
-                  $29/mo for unlimited generations, no credit tracking.
+              ) : estimateError ? (
+                <Text as="span" tone="critical">
+                  {estimateError}
                 </Text>
-              </BlockStack>
-              <Button onClick={handleSubscribe} loading={subscribing}>
-                Subscribe
-              </Button>
-            </InlineStack>
+              ) : estimate ? (
+                <BlockStack gap="100">
+                  <Text as="span" fontWeight="semibold">
+                    {`${estimate.credits} credits`}
+                  </Text>
+                  <Text as="span" tone="subdued" variant="bodySm">
+                    {`~$${estimate.pricePerCredit.toFixed(3)}/credit — priced to guarantee at least a ${estimate.marginPct}% margin on our end, even if you spend every credit on our priciest active model.`}
+                  </Text>
+                </BlockStack>
+              ) : null}
+
+              <InlineStack align="end">
+                <Button
+                  variant="primary"
+                  disabled={!estimate}
+                  loading={buyingCustom}
+                  onClick={handleBuyCustom}
+                >
+                  {estimate ? `Buy ${estimate.credits} credits for $${customAmount}` : 'Buy'}
+                </Button>
+              </InlineStack>
+            </BlockStack>
           </Card>
         </Layout.Section>
 
