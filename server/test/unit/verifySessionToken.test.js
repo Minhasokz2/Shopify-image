@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { getJwt } from '@shopify/shopify-api/test-helpers';
@@ -29,6 +29,14 @@ vi.mock('../../src/lib/sessionStorage.js', () => ({
   },
 }));
 
+// The middleware creates the shop's Firestore doc the first time it mints a session via token
+// exchange — backed by the in-memory fake so this unit test never touches a real project.
+vi.mock('../../src/lib/firestore.js', async () => {
+  const { createFakeFirestore } = await import('../helpers/fakeFirestore.js');
+  const fake = createFakeFirestore();
+  return { firestore: fake.firestore, FieldValue: fake.FieldValue, Timestamp: {} };
+});
+
 const { shopify } = await import('../../src/config/shopify.js');
 const { verifySessionToken } = await import('../../src/middleware/verifySessionToken.js');
 const { Session } = await import('@shopify/shopify-api');
@@ -47,8 +55,13 @@ function buildApp() {
 const STORE_NAME = 'session-test-shop';
 const SHOP = `${STORE_NAME}.myshopify.com`;
 
-describe('verifySessionToken', () => {
-  it('passes through and exposes the session for a valid token with an active stored session', async () => {
+beforeEach(() => {
+  storedSessions.clear();
+  vi.restoreAllMocks();
+});
+
+describe('verifySessionToken (token exchange strategy)', () => {
+  it('passes through with the stored offline session when one exists — no network calls at all', async () => {
     storedSessions.set(
       `offline_${SHOP}`,
       new Session({
@@ -60,31 +73,49 @@ describe('verifySessionToken', () => {
         scope: env.SHOPIFY_SCOPES.join(','),
       }),
     );
-
-    // The real middleware also confirms the stored access token still works with a live
-    // "shop { name }" GraphQL call. The underlying HTTP client (@shopify/admin-api-client)
-    // captures a direct reference to the platform's native fetch at adapter-load time, so
-    // stubbing globalThis.fetch later doesn't intercept it — spying on the GraphQL client
-    // class itself is the reliable way to answer that call without hitting the real network.
-    const graphqlSpy = vi
-      .spyOn(shopify.api.clients.Graphql.prototype, 'request')
-      .mockResolvedValue({ data: { shop: { name: 'Test Shop' } }, headers: {} });
+    const exchangeSpy = vi.spyOn(shopify.api.auth, 'tokenExchange');
 
     const { token } = await getJwt(STORE_NAME, env.SHOPIFY_API_KEY, env.SHOPIFY_API_SECRET);
-
     const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
-
-    graphqlSpy.mockRestore();
 
     expect(response.status).toBe(200);
     expect(response.body.shop).toBe(SHOP);
+    expect(exchangeSpy).not.toHaveBeenCalled();
+  });
+
+  it('mints a new offline session via token exchange when none is stored yet', async () => {
+    const freshShop = 'no-session-yet.myshopify.com';
+    vi.spyOn(shopify.api.auth, 'tokenExchange').mockResolvedValue({
+      session: new Session({
+        id: `offline_${freshShop}`,
+        shop: freshShop,
+        state: '',
+        isOnline: false,
+        accessToken: 'shpat_exchanged',
+      }),
+    });
+
+    const { token } = await getJwt('no-session-yet', env.SHOPIFY_API_KEY, env.SHOPIFY_API_SECRET);
+    const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.shop).toBe(freshShop);
+    // The exchanged session is persisted so subsequent requests skip the exchange entirely.
+    expect(storedSessions.get(`offline_${freshShop}`)?.accessToken).toBe('shpat_exchanged');
+  });
+
+  it('responds 401 when the token exchange itself is rejected by Shopify', async () => {
+    vi.spyOn(shopify.api.auth, 'tokenExchange').mockRejectedValue(new Error('exchange rejected'));
+
+    const { token } = await getJwt('rejected-shop', env.SHOPIFY_API_KEY, env.SHOPIFY_API_SECRET);
+    const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
   });
 
   it('does not grant access for a token signed with the wrong secret', async () => {
     const { token } = await getJwt(STORE_NAME, env.SHOPIFY_API_KEY, 'a-completely-wrong-secret');
-
     const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
-
     expect(response.status).not.toBe(200);
   });
 
@@ -92,25 +123,18 @@ describe('verifySessionToken', () => {
     const { token } = await getJwt(STORE_NAME, env.SHOPIFY_API_KEY, env.SHOPIFY_API_SECRET, {
       exp: Date.now() / 1000 - 3600,
     });
-
     const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
-
     expect(response.status).not.toBe(200);
   });
 
   it('does not grant access for a token with the wrong audience (API key)', async () => {
     const { token } = await getJwt(STORE_NAME, 'some-other-app-api-key', env.SHOPIFY_API_SECRET);
-
     const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
-
     expect(response.status).not.toBe(200);
   });
 
-  it('does not grant access when there is no stored session for the shop yet', async () => {
-    const { token } = await getJwt('no-session-yet', env.SHOPIFY_API_KEY, env.SHOPIFY_API_SECRET);
-
-    const response = await request(buildApp()).get('/protected').set('Authorization', `Bearer ${token}`);
-
-    expect(response.status).not.toBe(200);
+  it('does not grant access with no Authorization header at all', async () => {
+    const response = await request(buildApp()).get('/protected');
+    expect(response.status).toBe(401);
   });
 });

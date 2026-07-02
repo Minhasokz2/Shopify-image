@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import pinoHttp from 'pino-http';
 import { shopify } from './config/shopify.js';
+import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.js';
@@ -42,14 +43,24 @@ export function createApp() {
   app.use(googleAuthRouter);
   app.use('/api', apiRouter);
 
-  // Serve the built embedded-app frontend. Any route shopify-app-express hasn't already
-  // handled (i.e. anything that isn't /auth, /api, or /webhooks) is a page load of the embedded
-  // app itself — ensureInstalledOnShop() redirects to OAuth if the shop has no session yet.
+  // Serve the built embedded-app frontend. With Shopify managed installation + token exchange
+  // (see middleware/verifySessionToken.js) there is no per-shop install redirect to run here —
+  // Shopify installs the app before the embedded iframe ever loads, and the first authenticated
+  // /api/* call mints the offline token. The one non-embedded case worth handling: a merchant
+  // hitting the bare app URL with ?shop= (e.g. an old install link) gets bounced into the
+  // embedded app in their admin instead of a broken standalone page.
   if (fs.existsSync(WEB_DIST_PATH)) {
     app.use(express.static(WEB_DIST_PATH));
-    app.get('/*splat', shopify.ensureInstalledOnShop(), (req, res) => {
+    app.get('/*splat', (req, res) => {
+      const shopParam = typeof req.query.shop === 'string' ? req.query.shop : null;
+      if (shopParam && req.query.embedded !== '1') {
+        const sanitizedShop = shopify.api.utils.sanitizeShop(shopParam);
+        if (sanitizedShop) {
+          return res.redirect(`https://${sanitizedShop}/admin/apps/${env.SHOPIFY_API_KEY}`);
+        }
+      }
       res.set('Content-Type', 'text/html');
-      res.send(fs.readFileSync(path.join(WEB_DIST_PATH, 'index.html')));
+      return res.send(fs.readFileSync(path.join(WEB_DIST_PATH, 'index.html')));
     });
   }
 
