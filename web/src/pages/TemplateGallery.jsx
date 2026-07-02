@@ -121,15 +121,9 @@ export default function TemplateGallery() {
     }
   };
 
-  const handleContinueToTryOn = () => {
-    setGenerateError(null);
-    const primaryProduct = selectedProducts[0];
-    if (!primaryProduct) {
-      navigate('/products', { state: { returnTo: 'tryon' } });
-      return;
-    }
-    navigate('/try-on', { state: { product: primaryProduct } });
-  };
+  // VirtualTryOn.jsx is fully self-contained (its own person upload + product-image picker) —
+  // this tab is just a discoverability shortcut for merchants already browsing Templates.
+  const handleContinueToTryOn = () => navigate('/try-on');
 
   // Fires once, after ProductPicker sends the merchant back here with a product selected on
   // behalf of a template they clicked before one was chosen — completes that original click
@@ -190,14 +184,14 @@ export default function TemplateGallery() {
                     </Badge>
                   </InlineStack>
                 ) : null}
-                {selectedProducts.length > 0 && !tryOnCanAfford ? (
+                {!tryOnCanAfford ? (
                   <Text as="span" variant="bodySm" tone="critical">
                     Not enough credits ({balance} left)
                   </Text>
                 ) : null}
                 <Box>
                   <Button onClick={handleContinueToTryOn} disabled={!tryOnCanAfford}>
-                    {!tryOnCanAfford ? 'Top up to use' : selectedProducts.length === 0 ? 'Select product' : 'Continue'}
+                    {!tryOnCanAfford ? 'Top up to use' : 'Open Virtual Try-On'}
                   </Button>
                 </Box>
               </BlockStack>

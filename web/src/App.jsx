@@ -24,13 +24,9 @@ const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/products', label: 'Products' },
   { to: '/templates', label: 'Templates' },
-  // Routes through the same product picker as everything else, tagged with a `?mode=tryon` query
-  // param (not router `state` — Shopify's NavMenu portal re-renders these links in the parent
-  // admin frame, and state passed via React Router's `state` prop isn't guaranteed to survive
-  // that; a query param does, since it's part of the URL itself) so ProductPicker sends the
-  // merchant straight to /try-on with their chosen garment product instead of the default
-  // /generate-method — a direct nav shortcut around Templates' own Virtual Try-On tab.
-  { to: '/products?mode=tryon', label: 'Virtual Try-On' },
+  // VirtualTryOn.jsx is fully self-contained (its own person upload + product-image picker), so
+  // this is a plain direct link — no product needs to be pre-selected before landing here.
+  { to: '/try-on', label: 'Virtual Try-On' },
   { to: '/bulk', label: 'Bulk Queue' },
   { to: '/history', label: 'Job History' },
   { to: '/image-optimizer', label: 'Compress Image' },
@@ -53,8 +49,8 @@ export default function App() {
           these as a portal target, so the custom element dumps its children as raw <a> tags. */}
       {isEmbedded && (
         <NavMenu>
-          {NAV_LINKS.map(({ to, label, state }) => (
-            <Link key={label} to={to} state={state} rel={to === '/' ? 'home' : undefined}>
+          {NAV_LINKS.map(({ to, label }) => (
+            <Link key={to} to={to} rel={to === '/' ? 'home' : undefined}>
               {label}
             </Link>
           ))}
@@ -64,8 +60,8 @@ export default function App() {
       {!isEmbedded && (
         <Box background="bg-surface" borderBlockEndWidth="025" borderColor="border" padding="300">
           <InlineStack gap="400" wrap={false}>
-            {NAV_LINKS.map(({ to, label, state }) => (
-              <Link key={label} to={to} state={state} style={{ fontWeight: 600, color: 'var(--p-color-text)', textDecoration: 'none' }}>
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link key={to} to={to} style={{ fontWeight: 600, color: 'var(--p-color-text)', textDecoration: 'none' }}>
                 {label}
               </Link>
             ))}
