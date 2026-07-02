@@ -22,6 +22,7 @@ import {
 } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
 import { useImageOptimizerImages, useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
+import { StickyActionBar } from '../components/StickyActionBar.jsx';
 
 const TABS = [
   { id: 'store', content: 'Store Images' },
@@ -304,7 +305,10 @@ export default function ImageOptimizerConvert() {
           </Card>
         </Layout.Section>
 
-        <Layout.Section>
+      </Layout>
+
+      <StickyActionBar edge="bottom">
+        <BlockStack gap="200">
           {overQuota ? (
             <Banner tone="warning" title="Not enough free conversions left today">
               <p>
@@ -325,8 +329,8 @@ export default function ImageOptimizerConvert() {
               {`Convert${selectedList.length > 0 ? ` (${selectedList.length})` : ''}`}
             </Button>
           </InlineStack>
-        </Layout.Section>
-      </Layout>
+        </BlockStack>
+      </StickyActionBar>
     </Page>
   );
 }

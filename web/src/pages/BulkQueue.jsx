@@ -48,6 +48,7 @@ export default function BulkQueue() {
 }
 
 function BatchTracker({ batchId }) {
+  const navigate = useNavigate();
   const { data, isLoading } = useBatchPolling(batchId);
   const [selectedJobIds, setSelectedJobIds] = useState(() => new Set());
   const [publishState, setPublishState] = useState({ status: 'idle', error: null });
@@ -124,7 +125,11 @@ function BatchTracker({ batchId }) {
   const progress = batch.totalCount > 0 ? Math.round((batch.completedCount / batch.totalCount) * 100) : 0;
 
   return (
-    <Page title="Bulk Queue" subtitle={`Batch ${batch.id}`}>
+    <Page
+      title="Bulk Queue"
+      subtitle={`Batch ${batch.id}`}
+      backAction={{ content: 'Job History', onAction: () => navigate('/history') }}
+    >
       <Layout>
         <Layout.Section>
           <Card>

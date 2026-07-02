@@ -1,46 +1,56 @@
 import { useEffect, useRef, useState } from 'react';
 import { BlockStack, Box, Card, InlineStack, ProgressBar, Text } from '@shopify/polaris';
 
-// The backend only ever reports two in-flight statuses (`pending`, `processing`) — there is no
-// granular sub-status from the job worker (removing background vs. calling the model vs.
-// uploading results). Rather than show a progress bar frozen at one fixed number the whole time
-// a job runs, this simulates the pipeline's real stages (they always run in this order — see
-// jobWorker.js's runTemplateGeneration/runCustomGeneration) against elapsed wall-clock time, so
-// the merchant sees continuous motion instead of a stalled-looking bar.
-const STAGE_SECONDS = 6; // rough time per stage before advancing to the next, capped before 100%
+// STAGE_KEYS mirrors the real, backend-reported pipeline position (job.progressStage, set by
+// jobWorker.js at each actual step via modelRouter.js's onStage callback) — not a client-side
+// guess. The stage LABEL/INDEX is always real; only the progress bar's fill percentage animates
+// smoothly against elapsed time within a stage, purely so the bar doesn't sit dead still for the
+// 10-60s a stage can take.
+const STAGE_KEYS = ['queued', 'removing_background', 'generating', 'uploading_results'];
+const SMOOTH_FILL_SECONDS = 8; // assumed rough duration for the within-stage fill animation
 
 function buildStages({ isCustom, numImages }) {
   const genLabel = isCustom && numImages > 1 ? `Generating ${numImages} images with AI` : 'Generating your image with AI';
   return ['Queued', 'Removing the background', genLabel, 'Preparing your results'];
 }
 
+// The worker sets progressStage once it actually starts that step — before the first update
+// lands (or for a job resumed from before this field existed), fall back to the earliest
+// in-flight stage rather than showing nothing.
+function resolveStageKey(job) {
+  if (job.status === 'pending') return 'queued';
+  return job.progressStage ?? 'removing_background';
+}
+
 export function GenerationProgress({ job }) {
   const startedAtRef = useRef(Date.now());
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const lastStageChangeRef = useRef({ stage: null, at: Date.now() });
+  const [, forceTick] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000));
-    }, 1000);
+    const interval = setInterval(() => forceTick((n) => n + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
   const isCustom = Boolean(job.modelId);
   const stages = buildStages({ isCustom, numImages: job.numImages ?? 1 });
 
-  // Stage 0 ("Queued") only while the job hasn't started processing yet; once it flips to
-  // `processing`, skip straight to stage 1 regardless of elapsed time so the UI never looks
-  // stuck on "Queued" after the worker has actually picked it up.
-  const minStageIndex = job.status === 'processing' ? 1 : 0;
-  const elapsedStageIndex = Math.min(stages.length - 1, Math.floor(elapsedSeconds / STAGE_SECONDS));
-  const stageIndex = Math.max(minStageIndex, elapsedStageIndex);
+  const stageKey = resolveStageKey(job);
+  const stageIndex = Math.max(0, STAGE_KEYS.indexOf(stageKey));
 
-  // Progress fill: steady advance per stage, but never reaches 100% on its own — only the actual
-  // `succeeded` status (handled by the parent, which stops rendering this component) does that.
+  if (lastStageChangeRef.current.stage !== stageKey) {
+    lastStageChangeRef.current = { stage: stageKey, at: Date.now() };
+  }
+  const secondsInStage = (Date.now() - lastStageChangeRef.current.at) / 1000;
+
+  // Progress fill: real stage boundary, smooth fill within it, never reaching 100% on its own —
+  // only the actual `succeeded` status (handled by the parent, which stops rendering this
+  // component) does that.
   const perStage = 100 / stages.length;
-  const withinStageFraction = Math.min(1, (elapsedSeconds % STAGE_SECONDS) / STAGE_SECONDS);
+  const withinStageFraction = Math.min(1, secondsInStage / SMOOTH_FILL_SECONDS);
   const progress = Math.min(92, Math.round(stageIndex * perStage + withinStageFraction * perStage));
 
+  const elapsedSeconds = Math.floor((Date.now() - startedAtRef.current) / 1000);
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const elapsedLabel = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;

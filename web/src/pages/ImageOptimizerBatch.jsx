@@ -85,7 +85,7 @@ export default function ImageOptimizerBatch() {
   return (
     <Page
       title="Converting images"
-      backAction={{ content: 'Convert Images', onAction: () => navigate('/image-optimizer') }}
+      backAction={{ content: 'Conversion History', onAction: () => navigate('/image-optimizer/history') }}
       primaryAction={{ content: 'Conversion history', onAction: () => navigate('/image-optimizer/history') }}
     >
       <Layout>

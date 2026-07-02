@@ -97,7 +97,7 @@ export default function GenerationReview() {
   return (
     <Page
       title="Review generation"
-      backAction={{ content: 'Dashboard', onAction: () => navigate('/') }}
+      backAction={{ content: 'Job History', onAction: () => navigate('/history') }}
       titleMetadata={<CreditBalanceBadge />}
     >
       <BlockStack gap="400">

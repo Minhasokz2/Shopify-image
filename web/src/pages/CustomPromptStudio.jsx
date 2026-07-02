@@ -22,6 +22,7 @@ import {
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
+import { StickyActionBar } from '../components/StickyActionBar.jsx';
 
 const MAX_IMAGES = 6;
 const NUM_IMAGES_OPTIONS = [1, 2, 3, 4];
@@ -267,12 +268,15 @@ export default function CustomPromptStudio() {
           </Card>
         </Layout.Section>
 
-        <Layout.Section>
+      </Layout>
+
+      <StickyActionBar edge="bottom">
+        <InlineStack align="end">
           <Button variant="primary" size="large" loading={generateMutation.isPending} disabled={!canGenerate} onClick={handleGenerate}>
             Generate
           </Button>
-        </Layout.Section>
-      </Layout>
+        </InlineStack>
+      </StickyActionBar>
     </Page>
   );
 }

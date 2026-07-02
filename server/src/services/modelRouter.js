@@ -57,9 +57,16 @@ export async function executeGeneration({
   brandStyleProfile,
   motionPrompt,
   aspectRatio,
+  onStage,
 }) {
   const model = routeModel({ contentType, productCategoryTag, templateId, templates });
-  const cleanImageUrl = providedCleanImageUrl ?? (await removeBackground(sourceImageUrl));
+
+  let cleanImageUrl = providedCleanImageUrl;
+  if (!cleanImageUrl) {
+    onStage?.('removing_background');
+    cleanImageUrl = await removeBackground(sourceImageUrl);
+  }
+  onStage?.('generating');
 
   switch (contentType) {
     case 'scene': {
@@ -84,8 +91,10 @@ export async function executeGeneration({
 // choice is used as-is, not overridden by the color-critical-category logic that applies to
 // template-driven jobs (they picked this model on purpose). Background removal still runs on
 // every selected source image, same two-step pipeline as the template path.
-export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt, numImages }) {
+export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt, numImages, onStage }) {
+  onStage?.('removing_background');
   const cleanImageUrls = await Promise.all(sourceImageUrls.map((url) => removeBackground(url)));
+  onStage?.('generating');
   const variationUrls = await generateCustomScene({ model, cleanImageUrls, prompt: customPrompt, numImages });
   return { model, cleanImageUrls, variationUrls };
 }

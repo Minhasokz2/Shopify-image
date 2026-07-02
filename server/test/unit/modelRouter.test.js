@@ -105,6 +105,35 @@ describe('executeGeneration', () => {
     );
   });
 
+  it('reports real pipeline stages via onStage: removing_background then generating', async () => {
+    const stages = [];
+    await executeGeneration({
+      contentType: 'scene',
+      templateId: 'studio-white',
+      templates: TEMPLATES,
+      sourceImageUrl: 'https://shop.example.com/raw.png',
+      promptTemplate: 'Clean white studio',
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(stages).toEqual(['removing_background', 'generating']);
+  });
+
+  it('skips the removing_background stage report when a clean image is already supplied', async () => {
+    const stages = [];
+    await executeGeneration({
+      contentType: 'video',
+      templateId: 'video-slow-rotate',
+      templates: TEMPLATES,
+      cleanImageUrl: 'https://r2.example.com/already-clean.png',
+      motionPrompt: 'slow rotate',
+      aspectRatio: '9:16',
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(stages).toEqual(['generating']);
+  });
+
   it('dispatches UGC jobs to generateUGC with the persona settings intact', async () => {
     const personaSettings = { ageRange: 'adult', genderPresentation: 'feminine', setting: 'home' };
     await executeGeneration({
@@ -148,5 +177,17 @@ describe('executeCustomGeneration', () => {
     });
 
     expect(generateCustomScene).toHaveBeenCalledWith(expect.objectContaining({ model: 'flux-kontext-pro' }));
+  });
+
+  it('reports real pipeline stages via onStage: removing_background then generating', async () => {
+    const stages = [];
+    await executeCustomGeneration({
+      model: 'flux-kontext-max',
+      sourceImageUrls: ['https://shop.example.com/a.png'],
+      customPrompt: 'A prompt',
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(stages).toEqual(['removing_background', 'generating']);
   });
 });

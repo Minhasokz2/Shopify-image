@@ -17,6 +17,7 @@ import {
   Box,
 } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
+import { StickyActionBar } from '../components/StickyActionBar.jsx';
 
 function useProducts(cursor) {
   return useQuery({
@@ -86,13 +87,16 @@ export default function ProductPicker() {
       title="Select products"
       subtitle="Choose one or more products to generate new visuals for"
       backAction={{ content: 'Dashboard', onAction: () => navigate('/') }}
-      primaryAction={{
-        content: `Continue (${selectedIds.size})`,
-        disabled: selectedIds.size === 0,
-        onAction: handleContinue,
-      }}
     >
       <BlockStack gap="400">
+        <StickyActionBar edge="top">
+          <InlineStack align="end">
+            <Button variant="primary" disabled={selectedIds.size === 0} onClick={handleContinue}>
+              {`Continue (${selectedIds.size})`}
+            </Button>
+          </InlineStack>
+        </StickyActionBar>
+
         {error ? (
           <Banner tone="critical" title="Couldn't load products">
             <p>{error.message}</p>

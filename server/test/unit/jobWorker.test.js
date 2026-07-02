@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const jobsById = new Map();
 const getById = vi.fn(async (id) => jobsById.get(id));
 const markProcessing = vi.fn(async () => {});
+const updateProgressStage = vi.fn(async () => {});
 const getRefUpdate = vi.fn(async () => {});
 const getRef = vi.fn(() => ({ update: getRefUpdate }));
 
@@ -24,7 +25,7 @@ const persistMediaToCloudinary = vi.fn(async (url) => `https://res.cloudinary.co
 const captureJobFailure = vi.fn();
 
 vi.mock('../../src/models/jobsRepo.js', () => ({
-  jobsRepo: { getById, markProcessing, getRef, findResumable: vi.fn(async () => []) },
+  jobsRepo: { getById, markProcessing, getRef, updateProgressStage, findResumable: vi.fn(async () => []) },
   JOB_STATUS: { PENDING: 'pending', PROCESSING: 'processing', SUCCEEDED: 'succeeded', FAILED: 'failed' },
 }));
 vi.mock('../../src/models/batchesRepo.js', () => ({ batchesRepo: { recordJobOutcome, finalizeIfComplete } }));
@@ -174,6 +175,52 @@ describe('JobWorker: runJob success/failure settlement', () => {
     );
     expect(settleJobFailure).not.toHaveBeenCalled();
     expect(worker.getActiveCount('shop.myshopify.com')).toBe(0);
+  });
+
+  it('reports the uploading_results stage after generation returns and before Cloudinary persistence settles', async () => {
+    executeGeneration.mockResolvedValue({
+      model: 'flux-kontext-max',
+      cleanImageUrl: 'https://fal.example.com/clean.png',
+      variationUrls: ['https://fal.example.com/a.png'],
+    });
+    jobsById.set('job-stage', {
+      status: 'pending',
+      shopDomain: 'shop.myshopify.com',
+      contentType: 'scene',
+      templateId: 't1',
+      productImageUrl: 'https://shop.example.com/raw.png',
+      batchId: null,
+    });
+
+    const worker = new JobWorker();
+    await worker.runJob('job-stage', 'shop.myshopify.com');
+
+    // executeGeneration itself reports removing_background/generating (see modelRouter.test.js) —
+    // this asserts the worker's own final stage transition, which happens outside that call.
+    expect(updateProgressStage).toHaveBeenCalledWith('job-stage', 'uploading_results');
+  });
+
+  it('a failed progress-stage write never fails the job itself', async () => {
+    updateProgressStage.mockRejectedValueOnce(new Error('Firestore transiently unreachable'));
+    executeGeneration.mockResolvedValue({
+      model: 'flux-kontext-max',
+      cleanImageUrl: 'https://fal.example.com/clean.png',
+      variationUrls: ['https://fal.example.com/a.png'],
+    });
+    jobsById.set('job-stage-fail', {
+      status: 'pending',
+      shopDomain: 'shop.myshopify.com',
+      contentType: 'scene',
+      templateId: 't1',
+      productImageUrl: 'https://shop.example.com/raw.png',
+      batchId: null,
+    });
+
+    const worker = new JobWorker();
+    await worker.runJob('job-stage-fail', 'shop.myshopify.com');
+
+    expect(settleJobSuccess).toHaveBeenCalled();
+    expect(settleJobFailure).not.toHaveBeenCalled();
   });
 
   it('settles failure and never charges credits when generation throws', async () => {

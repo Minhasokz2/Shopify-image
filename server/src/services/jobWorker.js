@@ -84,9 +84,14 @@ class JobWorker {
 
       await jobsRepo.markProcessing(jobId);
 
+      // Best-effort — a failed progress-stage write must never fail the generation itself, so
+      // errors are swallowed rather than propagated or awaited by callers that don't need to.
+      const onStage = (stage) => jobsRepo.updateProgressStage(jobId, stage).catch(() => {});
       const { model, variationUrls } = job.modelId
-        ? await this.runCustomGeneration(job)
-        : await this.runTemplateGeneration(job, shopDomain);
+        ? await this.runCustomGeneration(job, onStage)
+        : await this.runTemplateGeneration(job, shopDomain, onStage);
+
+      await onStage('uploading_results');
 
       // Cloudinary derives the delivery format from the uploaded content itself — no file
       // extension belongs on a public_id the way it did on an R2 object key.
@@ -121,7 +126,7 @@ class JobWorker {
 
   // Fixed-prompt path: template supplies the model, prompt, and (via reuseCleanImageFromJobId)
   // the option to skip a redundant background-removal pass.
-  async runTemplateGeneration(job, shopDomain) {
+  async runTemplateGeneration(job, shopDomain, onStage) {
     const [template, shop] = await Promise.all([
       templatesRepo.getById(job.templateId),
       shopsRepo.getByDomain(shopDomain),
@@ -143,6 +148,7 @@ class JobWorker {
       brandStyleProfile: shop?.brandStyleProfile ?? null,
       motionPrompt: template.promptTemplate,
       aspectRatio: job.aspectRatio,
+      onStage,
     });
 
     // Persist the background-removed intermediate so a later job (e.g. a video generated from
@@ -157,12 +163,13 @@ class JobWorker {
   // Custom-prompt path: merchant supplies their own prompt and picked one of the admin's
   // allowed models directly — no template, no reuseCleanImageFromJobId optimization (there's no
   // single "the" clean image once multiple source images are combined as reference).
-  async runCustomGeneration(job) {
+  async runCustomGeneration(job, onStage) {
     return executeCustomGeneration({
       model: job.modelId,
       sourceImageUrls: job.productImageUrls,
       customPrompt: job.customPrompt,
       numImages: job.numImages ?? 1,
+      onStage,
     });
   }
 

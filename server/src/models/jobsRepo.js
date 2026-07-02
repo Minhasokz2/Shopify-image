@@ -26,12 +26,20 @@ export const jobsRepo = {
       batchId: null,
       publishedAt: null,
       completedAt: null,
+      // Real (not simulated) pipeline position — set by jobWorker.js at each actual step, so the
+      // review screen's progress UI reflects what's really happening rather than guessing from
+      // elapsed time. Null until the worker picks the job up.
+      progressStage: null,
       ...data,
     });
   },
 
   async markProcessing(jobId) {
     await repo.update(jobId, { status: JOB_STATUS.PROCESSING });
+  },
+
+  async updateProgressStage(jobId, progressStage) {
+    await repo.update(jobId, { progressStage });
   },
 
   async markSucceeded(jobId, { variations, modelUsed }) {

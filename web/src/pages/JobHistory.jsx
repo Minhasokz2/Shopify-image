@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Badge, BlockStack, Banner, Button, Card, EmptyState, IndexTable, InlineStack, Layout, Page, Select, Text, Thumbnail } from '@shopify/polaris';
 import { apiClient } from '../api/client.js';
 
@@ -24,40 +26,36 @@ const STATUS_TONE = {
   failed: 'critical',
 };
 
+const IN_PROGRESS_STATUSES = new Set(['pending', 'processing']);
+
+function useJobs(status, contentType) {
+  return useQuery({
+    queryKey: ['jobs', 'history', status, contentType],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (contentType) params.set('contentType', contentType);
+      const query = params.toString();
+      return apiClient.get(`/api/jobs${query ? `?${query}` : ''}`);
+    },
+    // Live-updates while anything in the current filtered view is still generating, so a
+    // merchant who navigated here to check on an in-progress job sees its status flip to
+    // succeeded/failed without needing to reload the page.
+    refetchInterval: (query) => {
+      const jobs = query.state.data?.jobs ?? [];
+      return jobs.some((job) => IN_PROGRESS_STATUSES.has(job.status)) ? 4000 : false;
+    },
+  });
+}
+
 export default function JobHistory() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState('');
   const [contentType, setContentType] = useState('');
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [republishState, setRepublishState] = useState({});
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (contentType) params.set('contentType', contentType);
-    const query = params.toString();
-
-    apiClient
-      .get(`/api/jobs${query ? `?${query}` : ''}`)
-      .then((data) => {
-        if (!cancelled) setJobs(data.jobs ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [status, contentType]);
+  const { data, isLoading, error } = useJobs(status, contentType);
+  const jobs = data?.jobs ?? [];
 
   const handleRedownload = (job) => {
     const url = job.variations?.[0]?.url;
@@ -97,13 +95,13 @@ export default function JobHistory() {
 
         {error && (
           <Layout.Section>
-            <Banner tone="critical">{error}</Banner>
+            <Banner tone="critical">{error.message}</Banner>
           </Layout.Section>
         )}
 
         <Layout.Section>
           <Card padding="0">
-            {!loading && jobs.length === 0 ? (
+            {!isLoading && jobs.length === 0 ? (
               <EmptyState
                 heading="No jobs yet"
                 image="https://cdn.shopify.com/s/files/1/0757/9955/files/empty-state.svg"
@@ -112,7 +110,7 @@ export default function JobHistory() {
               </EmptyState>
             ) : (
               <IndexTable
-                loading={loading}
+                loading={isLoading}
                 resourceName={{ singular: 'job', plural: 'jobs' }}
                 itemCount={jobs.length}
                 headings={[
@@ -129,6 +127,7 @@ export default function JobHistory() {
                 {jobs.map((job, index) => {
                   const previewUrl = job.variations?.[0]?.url;
                   const republish = republishState[job.id];
+                  const inProgress = IN_PROGRESS_STATUSES.has(job.status);
                   return (
                     <IndexTable.Row id={job.id} key={job.id} position={index}>
                       <IndexTable.Cell>
@@ -153,17 +152,25 @@ export default function JobHistory() {
                       </IndexTable.Cell>
                       <IndexTable.Cell>
                         <InlineStack gap="200">
-                          <Button size="slim" disabled={!previewUrl} onClick={() => handleRedownload(job)}>
-                            Re-download
-                          </Button>
-                          <Button
-                            size="slim"
-                            disabled={job.status !== 'succeeded'}
-                            loading={republish?.status === 'loading'}
-                            onClick={() => handleRepublish(job)}
-                          >
-                            {republish?.status === 'success' ? 'Published' : 'Re-publish'}
-                          </Button>
+                          {inProgress ? (
+                            <Button size="slim" variant="primary" onClick={() => navigate(`/review/${job.id}`)}>
+                              View progress
+                            </Button>
+                          ) : (
+                            <>
+                              <Button size="slim" disabled={!previewUrl} onClick={() => handleRedownload(job)}>
+                                Re-download
+                              </Button>
+                              <Button
+                                size="slim"
+                                disabled={job.status !== 'succeeded'}
+                                loading={republish?.status === 'loading'}
+                                onClick={() => handleRepublish(job)}
+                              >
+                                {republish?.status === 'success' ? 'Published' : 'Re-publish'}
+                              </Button>
+                            </>
+                          )}
                         </InlineStack>
                         {republish?.status === 'error' && (
                           <Text as="p" variant="bodySm" tone="critical">
