@@ -7,6 +7,7 @@ const {
   getMaxRealCostPerCredit,
   getMinSafePricePerCredit,
   estimateCustomCredits,
+  getModelImageEstimates,
   InvalidCustomAmountError,
   MIN_CUSTOM_PURCHASE_USD,
   MAX_CUSTOM_PURCHASE_USD,
@@ -93,5 +94,37 @@ describe('estimateCustomCredits', () => {
     // so even $MIN_CUSTOM_PURCHASE_USD buys 0 whole credits.
     findAll.mockResolvedValue([{ falModel: 'gpt-image-2-banner', creditCost: 0.1, active: true }]);
     await expect(estimateCustomCredits(MIN_CUSTOM_PURCHASE_USD)).rejects.toThrow(InvalidCustomAmountError);
+  });
+});
+
+// The merchant-facing translation of a credit total — deliberately never includes
+// pricePerCredit/marginPct (see previewCustomCreditPurchase in billing.js), only "how many images
+// does this get you per model," which is what the merchant actually cares about.
+describe('getModelImageEstimates', () => {
+  it('computes images per active model and sorts by image count descending', async () => {
+    findAll.mockResolvedValue([
+      { id: 'flux-kontext-max', label: 'FLUX Kontext Max', creditCost: 2, active: true },
+      { id: 'birefnet', label: 'BiRefNet Background Remove', creditCost: 1, active: true },
+      { id: 'nano-banana-pro', label: 'Nano Banana Pro', creditCost: 3, active: true },
+    ]);
+
+    const estimates = await getModelImageEstimates(12);
+
+    expect(estimates).toEqual([
+      { id: 'birefnet', label: 'BiRefNet Background Remove', images: 12 },
+      { id: 'flux-kontext-max', label: 'FLUX Kontext Max', images: 6 },
+      { id: 'nano-banana-pro', label: 'Nano Banana Pro', images: 4 },
+    ]);
+  });
+
+  it('excludes inactive models and models that would round down to 0 images', async () => {
+    findAll.mockResolvedValue([
+      { id: 'flux-kontext-max', label: 'FLUX Kontext Max', creditCost: 2, active: false },
+      { id: 'gpt-image-2-banner', label: 'GPT Image 2', creditCost: 9, active: true },
+    ]);
+
+    // 5 credits / 9 per image = 0 whole images for gpt-image-2-banner — excluded, not shown as 0.
+    const estimates = await getModelImageEstimates(5);
+    expect(estimates).toEqual([]);
   });
 });

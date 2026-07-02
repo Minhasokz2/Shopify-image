@@ -69,3 +69,21 @@ export async function estimateCustomCredits(amountUSD) {
 
   return { credits, pricePerCredit, marginPct: Math.round(MIN_MARGIN * 100) };
 }
+
+// Merchant-facing translation of a credit total into something concrete: how many images that
+// buys on each currently-active model. Deliberately doesn't surface pricePerCredit/marginPct —
+// those are internal, admin-only figures (see estimateCustomCredits) and have no reason to be
+// shown to (or fetched by) a merchant's browser. Sorted by image count descending so the
+// best-value models surface first.
+export async function getModelImageEstimates(credits) {
+  const models = await allowedModelsRepo.findAll();
+  return models
+    .filter((model) => model.active && model.creditCost > 0)
+    .map((model) => ({
+      id: model.id,
+      label: model.label,
+      images: Math.floor(credits / model.creditCost),
+    }))
+    .filter((entry) => entry.images > 0)
+    .sort((a, b) => b.images - a.images);
+}

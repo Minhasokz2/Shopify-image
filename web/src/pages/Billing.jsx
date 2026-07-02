@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BlockStack, Banner, Button, Card, InlineStack, Layout, Page, Text, TextField } from '@shopify/polaris';
+import { BlockStack, Banner, Box, Button, Card, InlineStack, Layout, Page, Scrollable, Text, TextField } from '@shopify/polaris';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { apiClient } from '../api/client.js';
@@ -162,8 +162,8 @@ export default function Billing() {
                 Buy a custom amount
               </Text>
               <Text as="p" tone="subdued">
-                Enter any amount between $5 and $2,000 — credits are priced live so this always
-                stays profitable, no matter which model you spend them on.
+                Enter any amount between $5 and $2,000 to see how many credits — and how many
+                images per model — that gets you.
               </Text>
 
               <TextField
@@ -186,13 +186,39 @@ export default function Billing() {
                   {estimateError}
                 </Text>
               ) : estimate ? (
-                <BlockStack gap="100">
+                <BlockStack gap="200">
                   <Text as="span" fontWeight="semibold">
                     {`${estimate.credits} credits`}
                   </Text>
-                  <Text as="span" tone="subdued" variant="bodySm">
-                    {`~$${estimate.pricePerCredit.toFixed(3)}/credit — priced to guarantee at least a ${estimate.marginPct}% margin on our end, even if you spend every credit on our priciest active model.`}
-                  </Text>
+
+                  {estimate.modelEstimates?.length > 0 ? (
+                    <BlockStack gap="150">
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        That's enough for:
+                      </Text>
+                      <Box borderWidth="025" borderColor="border" borderRadius="200">
+                        <Scrollable shadow style={{ maxHeight: 240 }}>
+                          <BlockStack gap="0">
+                            {estimate.modelEstimates.map((model, i) => (
+                              <Box
+                                key={model.id}
+                                padding="300"
+                                borderBlockStartWidth={i === 0 ? '0' : '025'}
+                                borderColor="border"
+                              >
+                                <InlineStack align="space-between" blockAlign="center">
+                                  <Text as="span">{model.label}</Text>
+                                  <Text as="span" fontWeight="semibold">
+                                    {`${model.images} image${model.images === 1 ? '' : 's'}`}
+                                  </Text>
+                                </InlineStack>
+                              </Box>
+                            ))}
+                          </BlockStack>
+                        </Scrollable>
+                      </Box>
+                    </BlockStack>
+                  ) : null}
                 </BlockStack>
               ) : null}
 

@@ -1,7 +1,7 @@
 import { shopify } from '../config/shopify.js';
 import { addCredits } from './creditLedger.js';
 import { shopsRepo } from '../models/shopsRepo.js';
-import { estimateCustomCredits } from './creditPricing.js';
+import { estimateCustomCredits, getModelImageEstimates } from './creditPricing.js';
 
 export class UnknownPackError extends Error {
   constructor(packId) {
@@ -56,11 +56,16 @@ export async function createOneTimePurchase({ session, packId, returnUrl, isTest
   return confirmationUrl;
 }
 
-// GET /api/billing/custom-purchase/estimate?amountUSD=20 — the same math used at actual purchase
-// time below, so the live "N credits for $X" preview the merchant types against is never wrong
-// by the time they click Buy.
+// GET /api/billing/custom-purchase/estimate?amountUSD=20 — the same credit math used at actual
+// purchase time below, so the live preview the merchant types against is never wrong by the time
+// they click Buy. Deliberately returns only `credits` and the per-model image breakdown, never
+// pricePerCredit/marginPct — those are internal, admin-only pricing-strategy figures with no
+// reason to reach a merchant's browser (not even in the raw API response, since anyone can open
+// devtools regardless of what the UI renders).
 export async function previewCustomCreditPurchase(amountUSD) {
-  return estimateCustomCredits(amountUSD);
+  const { credits } = await estimateCustomCredits(amountUSD);
+  const modelEstimates = await getModelImageEstimates(credits);
+  return { credits, modelEstimates };
 }
 
 // POST /api/billing/custom-purchase — lets a merchant buy any dollar amount of credits (within
@@ -69,7 +74,9 @@ export async function previewCustomCreditPurchase(amountUSD) {
 // this calls appPurchaseOneTimeCreate directly with a merchant-chosen price instead — same
 // pattern as the hand-rolled GraphQL calls in publish.js/shopifyMediaReplace.js.
 export async function createCustomCreditPurchase({ session, amountUSD, returnUrl, isTest = false }) {
-  const { credits, pricePerCredit } = await estimateCustomCredits(amountUSD);
+  // pricePerCredit is used only to derive `credits` here — never returned to the caller (this
+  // response reaches the merchant's browser), same reasoning as previewCustomCreditPurchase above.
+  const { credits } = await estimateCustomCredits(amountUSD);
 
   const client = new shopify.api.clients.Graphql({ session });
   const response = await client.request(APP_PURCHASE_ONE_TIME_CREATE_MUTATION, {
@@ -86,7 +93,7 @@ export async function createCustomCreditPurchase({ session, amountUSD, returnUrl
     throw new Error(userErrors.map((e) => e.message).join(' '));
   }
 
-  return { confirmationUrl, credits, pricePerCredit };
+  return { confirmationUrl, credits };
 }
 
 // POST /api/image-optimizer/billing/subscribe — separate $2.99/mo add-on, independent of the
