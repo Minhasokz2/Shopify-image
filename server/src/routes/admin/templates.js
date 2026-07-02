@@ -1,17 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { templatesRepo } from '../../models/templatesRepo.js';
-import { SCENE_MODEL_IDS } from '../../services/fal.js';
+import { TEMPLATE_MODEL_IDS } from '../../services/fal.js';
 
 const router = Router();
 
-// Scene models come from fal.js's SCENE_MODEL_IDS — the single source of truth also used by the
-// custom-prompt allowed-models catalog (routes/admin/models.js) and by generateScene/
-// generateCustomScene themselves. Previously this list was hardcoded here and drifted out of sync
-// with the allowed-models catalog (only 2 of the 5 verified models were selectable for
-// templates) — importing it directly makes that drift impossible going forward.
+// Scene models come from fal.js's TEMPLATE_MODEL_IDS — the original 5 shared with the
+// custom-prompt allowed-models catalog, PLUS the subset of the extended AI-feature catalog whose
+// request shape actually fits a template (always exactly one image, always a fixed batch of 4).
+// Deliberately narrower than Allowed Models' full 20: text-only models (would silently drop the
+// product photo on EVERY job using that template), dual-image models (templates have only one
+// image slot), and mask-required models are excluded — see fal.js's
+// TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for the full reasoning.
 const MODELS_BY_CATEGORY = {
-  scene: SCENE_MODEL_IDS,
+  scene: TEMPLATE_MODEL_IDS,
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };

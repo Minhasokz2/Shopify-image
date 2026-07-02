@@ -184,6 +184,25 @@ const EXTENDED_ALLOWED_MODELS = {
 
 export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS)];
 
+// Of the 15 extended models, only these 8 are safe to offer as a TEMPLATE's model — templates are
+// admin-configured once and then silently applied to every future job that uses them, unlike
+// Allowed Models where the merchant explicitly picks (and sees the "TEXT-ONLY" label on) a model
+// themselves each time. Excluded on purpose, not by oversight:
+//   - 'text_only' models (banner/brand-asset — 5 models) would make EVERY job on that template
+//     silently ignore the merchant's product photo and generate an unrelated image — the exact
+//     Imagen 4 failure mode this table exists to prevent, now at the template level instead of a
+//     one-off merchant choice.
+//   - 'dual_image' (virtual try-on) needs two distinct image roles; a template only ever has one
+//     product image slot, so there's no second image to assign a role to.
+//   - 'mask_required' (eraser) needs a mask; templates have no more of a mask than custom-prompt
+//     jobs do.
+const TEMPLATE_COMPATIBLE_SHAPES = new Set(['image_only', 'image_and_prompt', 'image_urls_prompt', 'image_urls_angles']);
+const TEMPLATE_COMPATIBLE_EXTENDED_IDS = Object.entries(EXTENDED_ALLOWED_MODELS)
+  .filter(([, config]) => TEMPLATE_COMPATIBLE_SHAPES.has(config.inputShape))
+  .map(([id]) => id);
+
+export const TEMPLATE_MODEL_IDS = [...SCENE_MODEL_IDS, ...TEMPLATE_COMPATIBLE_EXTENDED_IDS];
+
 // Step 1 of the two-step pipeline (spec Section 4/8) — always runs before scene/UGC generation.
 export async function removeBackground(imageUrl) {
   const result = await fal.subscribe('fal-ai/birefnet', { input: { image_url: imageUrl } });
@@ -193,22 +212,65 @@ export async function removeBackground(imageUrl) {
 // Step 2 for static scenes (template flow — fixed prompt, always exactly one source image, always
 // a fixed batch of 4 — unlike the custom flow, template cost is flat/per-job, not per-image).
 // `productAttributes.color` is threaded into the prompt as an explicit product-fidelity lock.
+// Checks CUSTOM_SCENE_MODELS first (original 5, untouched logic), then the TEMPLATE-compatible
+// subset of EXTENDED_ALLOWED_MODELS (see TEMPLATE_COMPATIBLE_EXTENDED_IDS above) — text_only,
+// dual_image, and mask_required models are deliberately never reachable here even if somehow
+// assigned to a template's preferredModel, since routes/admin/templates.js's own enum already
+// keeps them out; this check is the second, defense-in-depth layer.
 export async function generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
-  const config = CUSTOM_SCENE_MODELS[model];
-  if (!config) throw new Error(`Unknown scene model: ${model}`);
+  const sceneConfig = CUSTOM_SCENE_MODELS[model];
+  if (sceneConfig) {
+    return generateSceneFromCatalog(sceneConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile });
+  }
 
+  const extendedConfig = EXTENDED_ALLOWED_MODELS[model];
+  if (extendedConfig && TEMPLATE_COMPATIBLE_SHAPES.has(extendedConfig.inputShape)) {
+    return generateSceneFromExtendedCatalog(extendedConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile });
+  }
+
+  throw new Error(`Unknown scene model: ${model}`);
+}
+
+function buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile }) {
   const lockRules = `Preserve exact product color (${productAttributes?.color ?? 'as shown'}), logo, and label text. Do not alter product shape or proportions.`;
   const stylePrefix = brandStyleProfile
     ? `Match brand visual style: palette ${brandStyleProfile.palette.join(', ')}, tone ${brandStyleProfile.tone}. `
     : '';
+  return `${stylePrefix}${lockRules} Scene: ${promptTemplate}`;
+}
+
+async function generateSceneFromCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
   const input = {
-    prompt: `${stylePrefix}${lockRules} Scene: ${promptTemplate}`,
+    prompt: buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile }),
     num_images: 4,
     [config.imageParam]: config.imageParam === 'image_urls' ? [cleanImageUrl] : cleanImageUrl,
   };
 
   const result = await fal.subscribe(config.endpoint, { input });
   return result.data.images.map((img) => img.url);
+}
+
+async function generateSceneFromExtendedCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
+  const prompt = buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile });
+
+  if (config.inputShape === 'image_urls_prompt') {
+    const result = await fal.subscribe(config.endpoint, { input: { prompt, num_images: 4, image_urls: [cleanImageUrl] } });
+    return result.data.images.map((img) => img.url);
+  }
+
+  if (config.inputShape === 'image_urls_angles') {
+    const result = await fal.subscribe(config.endpoint, {
+      input: { image_urls: [cleanImageUrl], additional_prompt: prompt, num_images: 4 },
+    });
+    return result.data.images.map((img) => img.url);
+  }
+
+  // 'image_only' / 'image_and_prompt' — no native batch parameter, so produce the template's
+  // fixed batch of 4 by calling the endpoint 4 times in parallel, same as generateCustomScene's
+  // equivalent loop.
+  const input = config.inputShape === 'image_and_prompt' ? { image_url: cleanImageUrl, prompt } : { image_url: cleanImageUrl };
+  const results = await Promise.all(Array.from({ length: 4 }, () => fal.subscribe(config.endpoint, { input })));
+  return results.map((result) => extractUrl(result, config.outputField));
 }
 
 export class UnsupportedCustomModelInputError extends Error {

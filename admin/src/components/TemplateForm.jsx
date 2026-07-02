@@ -1,14 +1,34 @@
 import { useState } from 'react';
 import { Modal, FormLayout, TextField, Select, Banner } from '@shopify/polaris';
 
-// Must match server/src/services/fal.js's SCENE_MODEL_IDS (the actual source of truth, also used
-// by routes/admin/templates.js and routes/admin/models.js) exactly — the server will 400 on a
+// Must match server/src/services/fal.js's TEMPLATE_MODEL_IDS exactly — the server will 400 on a
 // mismatch, this is just so the form only offers valid choices instead of letting the admin
-// discover the constraint from an error message. All 5 are verified to have a genuine
-// image-input parameter; 'imagen-4' is deliberately excluded (pure text-to-image — it silently
-// discarded the actual product photo for any template assigned to it).
+// discover the constraint from an error message.
+//
+// Scene = the original 5 (multi-image edit models) + 8 of the 15 extended AI-feature models whose
+// request shape fits a template (always exactly one image, always a fixed batch of 4). The other
+// 7 extended models are Allowed-Models-only, NOT offered here, on purpose:
+//   - 5 text-only models (banner/brand-asset) would make EVERY job on a template using them
+//     silently ignore the product photo — the Imagen 4 failure mode, at the template level.
+//   - Virtual Try-On needs 2 distinct image roles; a template only has one image slot.
+//   - The eraser model needs a mask this app's UI can't create.
+// 'imagen-4' is deliberately excluded too — pure text-to-image, same reasoning as above.
 const MODELS_BY_CATEGORY = {
-  scene: ['flux-kontext-max', 'flux-kontext-pro', 'seedream-v4-edit', 'nano-banana', 'nano-banana-pro'],
+  scene: [
+    'flux-kontext-max',
+    'flux-kontext-pro',
+    'seedream-v4-edit',
+    'nano-banana',
+    'nano-banana-pro',
+    'bria-remove-background',
+    'birefnet',
+    'bria-extract-object',
+    'rembg',
+    'gemini-3-1-flash-retouch',
+    'topaz-upscale',
+    'seedvr-upscale',
+    'qwen-multi-angle',
+  ],
   ugc: ['gpt-image-2'],
   video: ['seedance-fast', 'kling-3', 'wan-2.7'],
 };

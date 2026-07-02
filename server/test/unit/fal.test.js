@@ -3,9 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const subscribe = vi.fn(async () => ({ data: { images: [{ url: 'https://fal.example.com/out.png' }] } }));
 vi.mock('@fal-ai/client', () => ({ fal: { config: vi.fn(), subscribe } }));
 
-const { generateCustomScene, generateScene, SCENE_MODEL_IDS, ALLOWED_MODEL_IDS, UnsupportedCustomModelInputError } = await import(
-  '../../src/services/fal.js'
-);
+const {
+  generateCustomScene,
+  generateScene,
+  SCENE_MODEL_IDS,
+  ALLOWED_MODEL_IDS,
+  TEMPLATE_MODEL_IDS,
+  UnsupportedCustomModelInputError,
+} = await import('../../src/services/fal.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -206,5 +211,72 @@ describe('generateCustomScene: extended Allowed-Models catalog', () => {
       generateCustomScene({ model: 'bria-eraser', cleanImageUrls: ['https://x/a.png'], prompt: '', numImages: 1 }),
     ).rejects.toThrow(UnsupportedCustomModelInputError);
     expect(subscribe).not.toHaveBeenCalled();
+  });
+});
+
+// Templates get a NARROWER slice of the extended catalog than Allowed Models does — only shapes
+// that fit "always exactly one image, always a fixed batch of 4" (see fal.js's
+// TEMPLATE_COMPATIBLE_EXTENDED_IDS comment for why text_only/dual_image/mask_required are
+// excluded here even though they're valid Allowed-Models choices).
+describe('generateScene: template-compatible extended models', () => {
+  it('exposes exactly 13 models for templates (5 original + 8 template-compatible extended)', () => {
+    expect(TEMPLATE_MODEL_IDS).toHaveLength(13);
+    expect(TEMPLATE_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
+  });
+
+  it('never includes a text_only, dual_image, or mask_required model', () => {
+    expect(TEMPLATE_MODEL_IDS).not.toEqual(
+      expect.arrayContaining(['gpt-image-2-banner', 'ideogram-v4-banner', 'flux-schnell-scene', 'flux-lora-brand', 'krea-2-lora-brand', 'fashn-tryon', 'bria-eraser']),
+    );
+  });
+
+  it('image_only shape (bria-remove-background): calls the endpoint 4 times for the template\'s fixed batch, single image_url only', async () => {
+    subscribe.mockResolvedValue({ data: { image: { url: 'https://fal.example.com/out.png' } } });
+
+    const urls = await generateScene({
+      model: 'bria-remove-background',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'unused for this shape',
+      productAttributes: {},
+    });
+
+    expect(subscribe).toHaveBeenCalledTimes(4);
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/bria/background/remove', { input: { image_url: 'https://x/clean.png' } });
+    expect(urls).toHaveLength(4);
+  });
+
+  it('image_and_prompt shape (bria-extract-object): sends the built scene prompt alongside the single image', async () => {
+    subscribe.mockResolvedValue({ data: { image: { url: 'https://fal.example.com/cut.png' } } });
+
+    await generateScene({
+      model: 'bria-extract-object',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'the product',
+      productAttributes: { color: 'blue' },
+    });
+
+    const [endpoint, { input }] = subscribe.mock.calls[0];
+    expect(endpoint).toBe('bria/extract-object');
+    expect(input.image_url).toBe('https://x/clean.png');
+    expect(input.prompt).toContain('the product');
+  });
+
+  it('image_urls_angles shape (qwen-multi-angle): wraps the single image in an array and uses additional_prompt', async () => {
+    await generateScene({
+      model: 'qwen-multi-angle',
+      cleanImageUrl: 'https://x/clean.png',
+      promptTemplate: 'studio scene',
+      productAttributes: {},
+    });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/qwen-image-edit-2511-multiple-angles', {
+      input: { image_urls: ['https://x/clean.png'], additional_prompt: expect.stringContaining('studio scene'), num_images: 4 },
+    });
+  });
+
+  it('throws for a text_only/dual_image/mask_required model even if passed directly (defense in depth)', async () => {
+    await expect(
+      generateScene({ model: 'gpt-image-2-banner', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
+    ).rejects.toThrow('Unknown scene model: gpt-image-2-banner');
   });
 });
