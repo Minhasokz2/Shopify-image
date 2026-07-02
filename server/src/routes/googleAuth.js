@@ -64,6 +64,11 @@ router.get('/auth/google/callback', async (req, res) => {
 
   try {
     const { email, googleId } = await verifyGoogleAuthCode(code);
+    // Under the token-exchange auth strategy, a shop's Firestore doc is only created lazily on
+    // its first authenticated /api/* call (see verifySessionToken.js) — this popup can fire
+    // before that has ever happened, so markGoogleVerified can't assume the shop record already
+    // exists. ensureShopExists is idempotent, so this is a no-op on every subsequent sign-in.
+    await shopsRepo.ensureShopExists(shopDomain);
     await shopsRepo.markGoogleVerified(shopDomain, { googleEmail: email, googleId });
     return renderPopupResult(res, { ok: true });
   } catch (err) {

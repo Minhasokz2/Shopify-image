@@ -171,6 +171,26 @@ describe('GET /auth/google/callback', () => {
     expect(shopDoc.data().creditBalance).toBe(10);
   });
 
+  it('creates the shop record on the fly when the popup fires before any /api/* call has run', async () => {
+    // Under the token-exchange auth strategy a shop's Firestore doc is only created lazily on its
+    // first authenticated /api/* call — this reproduces the real-world race where the Google
+    // popup completes before that has ever happened for a brand-new shop.
+    const freshShop = 'brand-new-shop.myshopify.com';
+    verifyGoogleAuthCode.mockResolvedValue({ email: 'fresh@example.com', googleId: 'g-fresh' });
+    const state = signState({ shop: freshShop });
+
+    const app = createApp();
+    const res = await request(app).get('/auth/google/callback').query({ code: 'auth-code', state });
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('"ok":true');
+
+    const shopDoc = await firestore.collection('shops').doc(freshShop).get();
+    expect(shopDoc.exists).toBe(true);
+    expect(shopDoc.data().googleVerifiedAt).toBeTruthy();
+    expect(shopDoc.data().creditBalance).toBe(10);
+  });
+
   it('rejects a tampered or expired state token without touching the shop', async () => {
     const app = createApp();
     const res = await request(app).get('/auth/google/callback').query({ code: 'auth-code', state: 'garbage' });
