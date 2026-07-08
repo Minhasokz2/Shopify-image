@@ -12,7 +12,29 @@ router.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
   async (req, res, next) => {
-    const { session } = res.locals.shopify;
+    let { session } = res.locals.shopify;
+
+    // shopify.auth.callback() completes the classic authorization-code grant, which can only ever
+    // produce a non-expiring offline token — that grant type has no `expiring` parameter, unlike
+    // token exchange (see verifySessionToken.js). Immediately migrating it here means this route
+    // (still reachable via referral links) never leaves a non-expiring token in storage even
+    // momentarily, which is exactly the token type Shopify's Partner Dashboard flags as deprecated
+    // for public apps. If migration fails for any reason, fall through and keep the classic token
+    // rather than blocking install — verifySessionToken's own re-exchange-on-next-request logic
+    // (isUsable() rejects a session with no `expires`) still cleans this up on the merchant's very
+    // first embedded page load either way.
+    try {
+      const migrated = await shopify.api.auth.migrateToExpiringToken({
+        shop: session.shop,
+        nonExpiringOfflineAccessToken: session.accessToken,
+      });
+      await shopify.config.sessionStorage.storeSession(migrated.session);
+      session = migrated.session;
+      logger.info({ shop: session.shop }, 'Migrated classic-OAuth offline token to an expiring one');
+    } catch (error) {
+      logger.warn({ shop: session.shop, err: error }, 'Failed to migrate offline token to expiring — keeping classic token for now');
+    }
+
     const referralCode = typeof req.query.referral === 'string' ? req.query.referral : null;
 
     let referrerShopDomain = null;

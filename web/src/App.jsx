@@ -1,24 +1,32 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { NavMenu } from '@shopify/app-bridge-react';
-import { Box, InlineStack } from '@shopify/polaris';
-import Dashboard from './pages/Dashboard.jsx';
-import ProductPicker from './pages/ProductPicker.jsx';
-import GenerateMethod from './pages/GenerateMethod.jsx';
-import TemplateGallery from './pages/TemplateGallery.jsx';
-import CustomPromptStudio from './pages/CustomPromptStudio.jsx';
-import PersonaBuilder from './pages/PersonaBuilder.jsx';
-import VideoStudio from './pages/VideoStudio.jsx';
-import VirtualTryOn from './pages/VirtualTryOn.jsx';
-import GenerationReview from './pages/GenerationReview.jsx';
-import BulkQueue from './pages/BulkQueue.jsx';
-import JobHistory from './pages/JobHistory.jsx';
-import BrandSettings from './pages/BrandSettings.jsx';
-import Billing from './pages/Billing.jsx';
-import Referrals from './pages/Referrals.jsx';
-import ImageOptimizerConvert from './pages/ImageOptimizerConvert.jsx';
-import ImageOptimizerBatch from './pages/ImageOptimizerBatch.jsx';
-import ImageOptimizerHistory from './pages/ImageOptimizerHistory.jsx';
-import ImageOptimizerSettings from './pages/ImageOptimizerSettings.jsx';
+import { Box, InlineStack, Spinner } from '@shopify/polaris';
+
+// Every page below used to be a static import, so visiting the Dashboard downloaded and parsed
+// every other page's code too (Bulk Queue, Video Studio, Persona Builder, the whole Image
+// Optimizer suite...) before it could render anything — the entire app shipped as one ~640KB
+// bundle regardless of which route a merchant actually opened. Lazy-loading per route means the
+// first paint only needs the code for whichever page is actually being visited; this is the
+// single biggest lever on Largest Contentful Paint for an app with this many pages.
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const ProductPicker = lazy(() => import('./pages/ProductPicker.jsx'));
+const GenerateMethod = lazy(() => import('./pages/GenerateMethod.jsx'));
+const TemplateGallery = lazy(() => import('./pages/TemplateGallery.jsx'));
+const CustomPromptStudio = lazy(() => import('./pages/CustomPromptStudio.jsx'));
+const PersonaBuilder = lazy(() => import('./pages/PersonaBuilder.jsx'));
+const VideoStudio = lazy(() => import('./pages/VideoStudio.jsx'));
+const VirtualTryOn = lazy(() => import('./pages/VirtualTryOn.jsx'));
+const GenerationReview = lazy(() => import('./pages/GenerationReview.jsx'));
+const BulkQueue = lazy(() => import('./pages/BulkQueue.jsx'));
+const JobHistory = lazy(() => import('./pages/JobHistory.jsx'));
+const BrandSettings = lazy(() => import('./pages/BrandSettings.jsx'));
+const Billing = lazy(() => import('./pages/Billing.jsx'));
+const Referrals = lazy(() => import('./pages/Referrals.jsx'));
+const ImageOptimizerConvert = lazy(() => import('./pages/ImageOptimizerConvert.jsx'));
+const ImageOptimizerBatch = lazy(() => import('./pages/ImageOptimizerBatch.jsx'));
+const ImageOptimizerHistory = lazy(() => import('./pages/ImageOptimizerHistory.jsx'));
+const ImageOptimizerSettings = lazy(() => import('./pages/ImageOptimizerSettings.jsx'));
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
@@ -39,6 +47,16 @@ const NAV_LINKS = [
 // Outside of it, NavMenu's children would otherwise dump as raw unstyled <a> tags into the
 // page — there's no Shopify chrome present to consume them as a portal target.
 const isEmbedded = typeof window !== 'undefined' && Boolean(window.shopify);
+
+function RouteFallback() {
+  return (
+    <Box padding="1000">
+      <InlineStack align="center">
+        <Spinner accessibilityLabel="Loading page" size="large" />
+      </InlineStack>
+    </Box>
+  );
+}
 
 export default function App() {
   return (
@@ -69,27 +87,29 @@ export default function App() {
         </Box>
       )}
 
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/products" element={<ProductPicker />} />
-        <Route path="/generate-method" element={<GenerateMethod />} />
-        <Route path="/templates" element={<TemplateGallery />} />
-        <Route path="/custom-generate" element={<CustomPromptStudio />} />
-        <Route path="/persona" element={<PersonaBuilder />} />
-        <Route path="/video-studio" element={<VideoStudio />} />
-        <Route path="/try-on" element={<VirtualTryOn />} />
-        <Route path="/review/:jobId" element={<GenerationReview />} />
-        <Route path="/bulk" element={<BulkQueue />} />
-        <Route path="/bulk/:batchId" element={<BulkQueue />} />
-        <Route path="/history" element={<JobHistory />} />
-        <Route path="/image-optimizer" element={<ImageOptimizerConvert />} />
-        <Route path="/image-optimizer/batches/:batchId" element={<ImageOptimizerBatch />} />
-        <Route path="/image-optimizer/history" element={<ImageOptimizerHistory />} />
-        <Route path="/image-optimizer/settings" element={<ImageOptimizerSettings />} />
-        <Route path="/brand" element={<BrandSettings />} />
-        <Route path="/billing" element={<Billing />} />
-        <Route path="/referrals" element={<Referrals />} />
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/products" element={<ProductPicker />} />
+          <Route path="/generate-method" element={<GenerateMethod />} />
+          <Route path="/templates" element={<TemplateGallery />} />
+          <Route path="/custom-generate" element={<CustomPromptStudio />} />
+          <Route path="/persona" element={<PersonaBuilder />} />
+          <Route path="/video-studio" element={<VideoStudio />} />
+          <Route path="/try-on" element={<VirtualTryOn />} />
+          <Route path="/review/:jobId" element={<GenerationReview />} />
+          <Route path="/bulk" element={<BulkQueue />} />
+          <Route path="/bulk/:batchId" element={<BulkQueue />} />
+          <Route path="/history" element={<JobHistory />} />
+          <Route path="/image-optimizer" element={<ImageOptimizerConvert />} />
+          <Route path="/image-optimizer/batches/:batchId" element={<ImageOptimizerBatch />} />
+          <Route path="/image-optimizer/history" element={<ImageOptimizerHistory />} />
+          <Route path="/image-optimizer/settings" element={<ImageOptimizerSettings />} />
+          <Route path="/brand" element={<BrandSettings />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/referrals" element={<Referrals />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }
