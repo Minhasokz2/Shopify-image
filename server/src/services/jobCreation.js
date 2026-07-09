@@ -36,7 +36,7 @@ export const generationInputSchema = z
 
     // Custom mode
     modelId: z.string().min(1).optional(),
-    customPrompt: z.string().min(1).max(2000).optional(),
+    customPrompt: z.string().min(1).max(4000).optional(),
     imageUrls: z.array(z.string().url()).min(1).max(6).optional(),
     numImages: z.coerce.number().int().min(1).max(4).optional(),
   })

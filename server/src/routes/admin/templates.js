@@ -31,7 +31,7 @@ const idSchema = z
 const templateFields = {
   name: z.string().min(1).max(120),
   category: z.enum(['scene', 'ugc', 'video']),
-  promptTemplate: z.string().min(1).max(2000),
+  promptTemplate: z.string().min(1).max(4000),
   preferredModel: z.string().min(1),
   creditCost: z.coerce.number().int().positive().max(1000),
   thumbnailUrl: z.string().url().nullable().optional(),
