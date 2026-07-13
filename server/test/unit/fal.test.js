@@ -10,6 +10,7 @@ const {
   ALLOWED_MODEL_IDS,
   TEMPLATE_MODEL_IDS,
   UnsupportedCustomModelInputError,
+  getImageCountConstraint,
 } = await import('../../src/services/fal.js');
 
 beforeEach(() => {
@@ -309,5 +310,31 @@ describe('generateScene: template-compatible extended models', () => {
     await expect(
       generateScene({ model: 'fashn-tryon', cleanImageUrl: 'https://x/clean.png', promptTemplate: 'p', productAttributes: {} }),
     ).rejects.toThrow('Unknown scene model: fashn-tryon');
+  });
+});
+
+describe('getImageCountConstraint', () => {
+  it('returns exactly 2 for the dual_image model (fashn-tryon), not the generic supportsMultiImage range', () => {
+    expect(getImageCountConstraint('fashn-tryon')).toEqual({ min: 2, max: 2, exact: 2 });
+  });
+
+  it('returns 1-6 for an extended model with supportsMultiImage: true', () => {
+    expect(getImageCountConstraint('gemini-3-1-flash-retouch')).toEqual({ min: 1, max: 6, exact: null });
+  });
+
+  it('returns exactly 1 for an extended model with supportsMultiImage: false', () => {
+    expect(getImageCountConstraint('bria-remove-background')).toEqual({ min: 1, max: 1, exact: 1 });
+  });
+
+  it('returns 1-6 for an original scene model whose imageParam is image_urls', () => {
+    expect(getImageCountConstraint('nano-banana')).toEqual({ min: 1, max: 6, exact: null });
+  });
+
+  it('returns 1-6 for an original scene model with a multiEndpoint (singular imageParam, but a multi variant exists)', () => {
+    expect(getImageCountConstraint('flux-kontext-max')).toEqual({ min: 1, max: 6, exact: null });
+  });
+
+  it('defaults to exactly 1 for an unknown model id, rather than allowing an unbounded upload', () => {
+    expect(getImageCountConstraint('not-a-real-model')).toEqual({ min: 1, max: 1, exact: 1 });
   });
 });

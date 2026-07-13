@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { jobsRepo } from '../../models/jobsRepo.js';
-import { publishJobToShopify } from '../../services/publish.js';
+import { publishJobToShopify, createProductForJob } from '../../services/publish.js';
 import { createGenerationJob } from '../../services/jobCreation.js';
 import { requireJobCapacity } from '../../middleware/rateLimiter.js';
 
@@ -59,6 +59,27 @@ router.post('/jobs/:jobId/publish', async (req, res) => {
     approvedIndices,
   });
   return res.json(result);
+});
+
+// POST /api/jobs/:jobId/create-product — for a job with no productId at all (e.g. generated from
+// an uploaded reference image rather than an existing catalog item). Creates a bare Shopify
+// product and backfills it onto the job; the merchant's next action ("Publish approved") then
+// goes through the normal /publish route above unchanged.
+const createProductRequestSchema = z.object({ title: z.string().min(1).max(255) });
+
+router.post('/jobs/:jobId/create-product', async (req, res) => {
+  const { title } = createProductRequestSchema.parse(req.body);
+  const job = await jobsRepo.getById(req.params.jobId);
+  if (!job || job.shopDomain !== req.shopDomain) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  const result = await createProductForJob({
+    session: req.shopSession,
+    jobId: req.params.jobId,
+    title,
+  });
+  return res.status(result.created ? 201 : 200).json(result);
 });
 
 export default router;

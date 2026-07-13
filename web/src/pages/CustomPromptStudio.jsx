@@ -18,6 +18,7 @@ import {
   Spinner,
   Box,
   EmptyState,
+  DropZone,
 } from '@shopify/polaris';
 import { ImagesIcon, EditIcon, MagicIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
@@ -28,6 +29,7 @@ import { SectionHeading } from '../components/SectionHeading.jsx';
 
 const MAX_IMAGES = 6;
 const NUM_IMAGES_OPTIONS = [1, 2, 3, 4];
+const DEFAULT_IMAGE_COUNT = { min: 1, max: MAX_IMAGES, exact: null };
 
 // Allowed Models is admin-managed from a separate app — don't trust the global 10s staleTime
 // (main.jsx) for whether a model is priced/active right now (see TemplateGallery.jsx for the
@@ -42,15 +44,22 @@ function useAllowedModels() {
   });
 }
 
-// Custom-prompt scene generation: merchant selects one or more product images (across their
-// selected products), writes their own prompt, and picks an admin-allowed model directly —
-// the alternative to browsing fixed-prompt templates in TemplateGallery.
+// Custom-prompt scene generation: merchant selects reference images — from their catalog, freshly
+// uploaded, or a mix of both — writes their own prompt, and picks an admin-allowed model directly.
+// Reachable two ways: from GenerateMethod with selectedProducts already chosen (location.state is
+// set), or directly from the Dashboard's "Upload & generate" quick-generate tab with no product at
+// all (location.state is undefined) — every image comes from the upload widget in that case. Both
+// paths render the exact same page; only the catalog checkboxes section is skipped when there are
+// no product images to offer.
 export default function CustomPromptStudio() {
   const navigate = useNavigate();
   const location = useLocation();
   const selectedProducts = location.state?.selectedProducts ?? [];
+  const cameFromGenerateMethod = Boolean(location.state);
 
   const [selectedImageUrls, setSelectedImageUrls] = useState(() => new Set());
+  const [uploadedImages, setUploadedImages] = useState([]); // [{ url }], newest last
+  const [uploadError, setUploadError] = useState(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedModelId, setSelectedModelId] = useState('');
   const [numImages, setNumImages] = useState('1');
@@ -58,8 +67,14 @@ export default function CustomPromptStudio() {
 
   const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useAllowedModels();
   const { data: creditData } = useCreditBalance();
-  const models = modelsData?.models ?? [];
+  // fashn-tryon (Virtual Try-On) is deliberately excluded here — it needs two DIFFERENT image
+  // roles (a person photo and a separate garment photo), not a list of interchangeable
+  // references this page's UI offers, which is exactly why it gets its own guided flow
+  // (VirtualTryOn.jsx) instead. Selecting it here would let a merchant pick e.g. 1 or 4 images
+  // and only fail with a confusing error once generation actually runs.
+  const models = (modelsData?.models ?? []).filter((m) => m.id !== 'fashn-tryon');
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null;
+  const imageCount = selectedModel?.imageCount ?? DEFAULT_IMAGE_COUNT;
 
   const isUnlimited = creditData?.plan === 'unlimited';
   const balance = creditData?.creditBalance ?? null;
@@ -83,19 +98,61 @@ export default function CustomPromptStudio() {
     return images;
   }, [selectedProducts]);
 
+  const totalSelectedImages = selectedImageUrls.size + uploadedImages.length;
+  // Cap is the currently-picked model's max once one is chosen, otherwise the shared hard limit —
+  // model choice happens in step 3, after images are picked in step 1, so before a model is
+  // selected the widest possible cap applies and gets enforced retroactively once one is.
+  const effectiveMax = selectedModel ? imageCount.max : MAX_IMAGES;
+  const remainingSlots = Math.max(0, effectiveMax - totalSelectedImages);
+  const tooFewForModel = Boolean(selectedModel) && totalSelectedImages < imageCount.min;
+  const tooManyForModel = Boolean(selectedModel) && totalSelectedImages > imageCount.max;
+
   const toggleImage = (url) => {
     setSelectedImageUrls((prev) => {
       const next = new Set(prev);
       if (next.has(url)) {
         next.delete(url);
-      } else if (next.size < MAX_IMAGES) {
+      } else if (remainingSlots > 0) {
         next.add(url);
       }
       return next;
     });
   };
 
-  const tooManyForModel = selectedModel && !selectedModel.supportsMultiImage && selectedImageUrls.size > 1;
+  const uploadFile = (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.postFormData('/api/uploads/reference-image', formData);
+  };
+  const uploadMutation = useMutation({ mutationFn: uploadFile });
+
+  // DropZone hands back every dropped/selected file at once, even beyond however many slots are
+  // actually left — extra files past the model's (or the shared) cap are silently dropped with an
+  // explanation rather than uploaded and then immediately unusable.
+  const handleDropUpload = async (_dropFiles, acceptedFiles) => {
+    setUploadError(null);
+    const files = acceptedFiles.slice(0, remainingSlots);
+    if (acceptedFiles.length > files.length) {
+      setUploadError(
+        `Only ${remainingSlots} more image${remainingSlots === 1 ? '' : 's'} can be added${
+          selectedModel ? ` for ${selectedModel.label}` : ''
+        } — the rest weren't uploaded.`,
+      );
+    }
+    for (const file of files) {
+      try {
+        const result = await uploadMutation.mutateAsync(file);
+        setUploadedImages((prev) => [...prev, { url: result.imageUrl }]);
+      } catch (err) {
+        setUploadError(err.message);
+        break;
+      }
+    }
+  };
+
+  const removeUploadedImage = (url) => {
+    setUploadedImages((prev) => prev.filter((img) => img.url !== url));
+  };
 
   const generateMutation = useMutation({
     mutationFn: () =>
@@ -104,7 +161,7 @@ export default function CustomPromptStudio() {
         contentType: 'scene',
         modelId: selectedModelId,
         customPrompt: customPrompt.trim(),
-        imageUrls: Array.from(selectedImageUrls),
+        imageUrls: [...selectedImageUrls, ...uploadedImages.map((img) => img.url)],
         numImages: Number(numImages),
         idempotencyKey: crypto.randomUUID(),
       }),
@@ -127,27 +184,26 @@ export default function CustomPromptStudio() {
   };
 
   const canGenerate =
-    selectedProducts.length > 0 &&
-    selectedImageUrls.size > 0 &&
+    totalSelectedImages > 0 &&
     customPrompt.trim().length > 0 &&
     Boolean(selectedModelId) &&
+    !tooFewForModel &&
     !tooManyForModel &&
     canAfford;
 
   return (
     <Page
       title="Custom prompt"
-      subtitle="Select reference images, write your own prompt, and pick a model"
-      backAction={{ content: 'Back', onAction: () => navigate('/generate-method', { state: { selectedProducts } }) }}
+      subtitle="Select or upload reference images, write your own prompt, and pick a model"
+      backAction={{
+        content: cameFromGenerateMethod ? 'Back' : 'Dashboard',
+        onAction: () =>
+          cameFromGenerateMethod ? navigate('/generate-method', { state: { selectedProducts } }) : navigate('/'),
+      }}
       titleMetadata={<CreditBalanceBadge />}
     >
       <Layout>
         <Layout.Section>
-          {selectedProducts.length === 0 ? (
-            <Banner tone="warning" title="No product selected">
-              <p>Go back and select at least one product before generating.</p>
-            </Banner>
-          ) : null}
           {generateError ? (
             <Banner tone="critical" title="Couldn't start generation" onDismiss={() => setGenerateError(null)}>
               <p>{generateError}</p>
@@ -164,43 +220,114 @@ export default function CustomPromptStudio() {
           <Card>
             <BlockStack gap="300">
               <SectionHeading icon={ImagesIcon}>
-                {`1. Select reference images (${selectedImageUrls.size}/${MAX_IMAGES})`}
+                {`1. Select reference images (${totalSelectedImages}/${effectiveMax})`}
               </SectionHeading>
-              {availableImages.length === 0 ? (
+
+              {availableImages.length > 0 ? (
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    From your catalog
+                  </Text>
+                  <InlineStack gap="300" wrap>
+                    {availableImages.map(({ url, productTitle }) => {
+                      const isSelected = selectedImageUrls.has(url);
+                      return (
+                        <Box
+                          key={url}
+                          padding="200"
+                          borderWidth={isSelected ? '050' : '025'}
+                          borderColor={isSelected ? 'border-emphasis' : 'border'}
+                          borderRadius="200"
+                          background={isSelected ? 'bg-surface-selected' : undefined}
+                        >
+                          <BlockStack gap="150" inlineAlign="center">
+                            <Checkbox
+                              label={`Select image from ${productTitle}`}
+                              labelHidden
+                              checked={isSelected}
+                              disabled={!isSelected && remainingSlots === 0}
+                              onChange={() => toggleImage(url)}
+                            />
+                            <Thumbnail source={url} alt={productTitle} size="large" />
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {productTitle}
+                            </Text>
+                          </BlockStack>
+                        </Box>
+                      );
+                    })}
+                  </InlineStack>
+                </BlockStack>
+              ) : selectedProducts.length > 0 ? (
                 <EmptyState heading="No images available" image="">
                   <p>The selected product(s) have no images.</p>
                 </EmptyState>
-              ) : (
-                <InlineStack gap="300" wrap>
-                  {availableImages.map(({ url, productTitle }) => {
-                    const isSelected = selectedImageUrls.has(url);
-                    return (
-                      <Box
-                        key={url}
-                        padding="200"
-                        borderWidth={isSelected ? '050' : '025'}
-                        borderColor={isSelected ? 'border-emphasis' : 'border'}
-                        borderRadius="200"
-                        background={isSelected ? 'bg-surface-selected' : undefined}
-                      >
+              ) : null}
+
+              <BlockStack gap="200">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Or upload your own
+                </Text>
+
+                {uploadedImages.length > 0 ? (
+                  <InlineStack gap="300" wrap>
+                    {uploadedImages.map((img) => (
+                      <Box key={img.url} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
                         <BlockStack gap="150" inlineAlign="center">
-                          <Checkbox
-                            label={`Select image from ${productTitle}`}
-                            labelHidden
-                            checked={isSelected}
-                            disabled={!isSelected && selectedImageUrls.size >= MAX_IMAGES}
-                            onChange={() => toggleImage(url)}
-                          />
-                          <Thumbnail source={url} alt={productTitle} size="large" />
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {productTitle}
-                          </Text>
+                          <Thumbnail source={img.url} alt="Uploaded reference image" size="large" />
+                          <Button variant="plain" tone="critical" onClick={() => removeUploadedImage(img.url)}>
+                            Remove
+                          </Button>
                         </BlockStack>
                       </Box>
-                    );
-                  })}
-                </InlineStack>
-              )}
+                    ))}
+                  </InlineStack>
+                ) : null}
+
+                {remainingSlots > 0 ? (
+                  <DropZone accept="image/*" type="image" allowMultiple onDrop={handleDropUpload}>
+                    <DropZone.FileUpload
+                      actionTitle="Drag or upload image(s)"
+                      actionHint={`Supports JPG, JPEG, PNG, WEBP, up to 20MB each — ${remainingSlots} more can be added${
+                        selectedModel ? ` for ${selectedModel.label}` : ''
+                      }`}
+                    />
+                  </DropZone>
+                ) : (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {selectedModel
+                      ? `${selectedModel.label} accepts at most ${imageCount.max} image${imageCount.max === 1 ? '' : 's'} — remove one to add another.`
+                      : `You've reached the ${MAX_IMAGES}-image limit — remove one to add another.`}
+                  </Text>
+                )}
+
+                {uploadMutation.isPending ? (
+                  <InlineStack align="center">
+                    <Spinner accessibilityLabel="Uploading" size="small" />
+                  </InlineStack>
+                ) : null}
+
+                {uploadError ? (
+                  <Banner tone="critical" onDismiss={() => setUploadError(null)}>
+                    {uploadError}
+                  </Banner>
+                ) : null}
+              </BlockStack>
+
+              {tooFewForModel ? (
+                <Text as="span" tone="critical">
+                  {`${selectedModel.label} needs at least ${imageCount.min} image${imageCount.min === 1 ? '' : 's'} — select or upload ${
+                    imageCount.min - totalSelectedImages
+                  } more.`}
+                </Text>
+              ) : null}
+              {tooManyForModel ? (
+                <Text as="span" tone="critical">
+                  {`${selectedModel.label} only accepts ${imageCount.exact ?? imageCount.max} image${
+                    (imageCount.exact ?? imageCount.max) === 1 ? '' : 's'
+                  } — remove ${totalSelectedImages - imageCount.max} to continue.`}
+                </Text>
+              ) : null}
             </BlockStack>
           </Card>
         </Layout.Section>
@@ -262,14 +389,12 @@ export default function CustomPromptStudio() {
                   {selectedModel ? (
                     <InlineStack gap="150">
                       <Badge tone={canAfford ? undefined : 'critical'}>{`${totalCost} credits total`}</Badge>
-                      {selectedModel.supportsMultiImage ? <Badge tone="info">Supports multiple images</Badge> : null}
+                      <Badge tone="info">
+                        {imageCount.exact
+                          ? `Needs exactly ${imageCount.exact} image${imageCount.exact === 1 ? '' : 's'}`
+                          : `Up to ${imageCount.max} images`}
+                      </Badge>
                     </InlineStack>
-                  ) : null}
-                  {tooManyForModel ? (
-                    <Text as="span" tone="critical">
-                      This model only supports a single reference image — deselect extra images or pick a different
-                      model.
-                    </Text>
                   ) : null}
                   {selectedModel && !canAfford ? (
                     <Text as="span" tone="critical">

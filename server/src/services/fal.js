@@ -167,6 +167,32 @@ const EXTENDED_ALLOWED_MODELS = {
 
 export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS)];
 
+// Single source of truth for "how many reference images does this model actually take", derived
+// straight from the tables above rather than duplicated as separate per-model config — the
+// custom-prompt UI (web/src/pages/CustomPromptStudio.jsx) needs this to cap how many images a
+// merchant can select/upload for a given model (e.g. fashn-tryon needs exactly 2, most
+// single-image models take exactly 1, the image_urls_* shapes take anywhere up to the shared
+// job-creation max of 6 — see generationInputSchema's imageUrls.max(6) in jobCreation.js).
+// `exact` is non-null only when the count can't vary at all (dual_image); everything else has a
+// real min/max range instead.
+export function getImageCountConstraint(modelId) {
+  const extended = EXTENDED_ALLOWED_MODELS[modelId];
+  if (extended) {
+    if (extended.inputShape === 'dual_image') return { min: 2, max: 2, exact: 2 };
+    return extended.supportsMultiImage ? { min: 1, max: 6, exact: null } : { min: 1, max: 1, exact: 1 };
+  }
+
+  const sceneModel = CUSTOM_SCENE_MODELS[modelId];
+  if (sceneModel) {
+    const supportsMulti = sceneModel.imageParam === 'image_urls' || Boolean(sceneModel.multiEndpoint);
+    return supportsMulti ? { min: 1, max: 6, exact: null } : { min: 1, max: 1, exact: 1 };
+  }
+
+  // Unknown model id — default to the most conservative constraint rather than silently allowing
+  // an unbounded upload the model might reject.
+  return { min: 1, max: 1, exact: 1 };
+}
+
 // Of the 11 extended models, only these 10 are safe to offer as a TEMPLATE's model — templates are
 // admin-configured once and then silently applied to every future job that uses them, unlike
 // Allowed Models where the merchant explicitly picks a model themselves each time. Excluded on

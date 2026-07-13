@@ -12,6 +12,7 @@ import {
   Checkbox,
   Button,
   Box,
+  TextField,
 } from '@shopify/polaris';
 import { useJobPolling } from '../hooks/useJobPolling.js';
 import { apiClient } from '../api/client.js';
@@ -53,6 +54,17 @@ export default function GenerationReview() {
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const effectiveProductId = targetProduct?.id ?? job?.productId ?? null;
 
+  // Offered only when the job has no product at all (e.g. generated from an uploaded reference
+  // image rather than a catalog item — see CustomPromptStudio.jsx's upload tab). Creates a bare
+  // Shopify product and points `targetProduct` at it, so the existing publish flow below (button,
+  // approvedIndices, effectiveProductId) handles the rest exactly as if a real product had always
+  // been chosen — no separate "attach media to a brand-new product" logic needed here.
+  const [newProductTitle, setNewProductTitle] = useState('');
+  const [createProductError, setCreateProductError] = useState(null);
+  const createProductMutation = useMutation({
+    mutationFn: () => apiClient.post(`/api/jobs/${jobId}/create-product`, { title: newProductTitle.trim() }),
+  });
+
   const isVideo = job?.contentType === 'video';
 
   // The job worker only deducts credits once generation succeeds (see
@@ -93,6 +105,16 @@ export default function GenerationReview() {
       queryClient.invalidateQueries({ queryKey: ['job', jobId] });
     } catch (err) {
       setPublishError(err.message || 'Failed to publish approved variations.');
+    }
+  };
+
+  const handleCreateProduct = async () => {
+    setCreateProductError(null);
+    try {
+      const result = await createProductMutation.mutateAsync();
+      setTargetProduct({ id: result.productId, title: result.productTitle ?? newProductTitle.trim() });
+    } catch (err) {
+      setCreateProductError(err.message || 'Failed to create product.');
     }
   };
 
@@ -267,23 +289,57 @@ export default function GenerationReview() {
             ) : null}
 
             <Card>
-              <InlineStack align="space-between" blockAlign="center" wrap>
-                <BlockStack gap="050">
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    Publish to
-                  </Text>
-                  <Text as="span" fontWeight="medium">
-                    {targetProduct
-                      ? targetProduct.title
-                      : job.productId
-                        ? 'The product this was generated from'
-                        : 'No product chosen yet'}
-                  </Text>
-                </BlockStack>
-                <Button onClick={() => setProductPickerOpen(true)}>
-                  {targetProduct || job.productId ? 'Use a different product' : 'Choose a product'}
-                </Button>
-              </InlineStack>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <BlockStack gap="050">
+                    <Text as="span" variant="bodySm" tone="subdued">
+                      Publish to
+                    </Text>
+                    <Text as="span" fontWeight="medium">
+                      {targetProduct
+                        ? targetProduct.title
+                        : job.productId
+                          ? 'The product this was generated from'
+                          : 'No product chosen yet'}
+                    </Text>
+                  </BlockStack>
+                  <Button onClick={() => setProductPickerOpen(true)}>
+                    {targetProduct || job.productId ? 'Use a different product' : 'Choose a product'}
+                  </Button>
+                </InlineStack>
+
+                {!targetProduct && !job.productId ? (
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Or create a brand-new product from this image
+                    </Text>
+                    {createProductError ? (
+                      <Banner tone="critical" onDismiss={() => setCreateProductError(null)}>
+                        {createProductError}
+                      </Banner>
+                    ) : null}
+                    <InlineStack gap="200" blockAlign="center" wrap>
+                      <Box minWidth="240px">
+                        <TextField
+                          label="New product title"
+                          labelHidden
+                          placeholder="e.g. Studio Scene Mug"
+                          value={newProductTitle}
+                          onChange={setNewProductTitle}
+                          autoComplete="off"
+                        />
+                      </Box>
+                      <Button
+                        loading={createProductMutation.isPending}
+                        disabled={!newProductTitle.trim()}
+                        onClick={handleCreateProduct}
+                      >
+                        Create a new product
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                ) : null}
+              </BlockStack>
             </Card>
 
             <InlineStack align="end">

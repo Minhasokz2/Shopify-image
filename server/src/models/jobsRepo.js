@@ -63,6 +63,15 @@ export const jobsRepo = {
     await repo.update(jobId, { publishedAt: FieldValue.serverTimestamp(), variations });
   },
 
+  // Backfills productId onto a job that was created without one (e.g. from an uploaded image with
+  // no catalog product behind it — see services/publish.js's createProductForJob). Once set, the
+  // job behaves exactly like any catalog-originated job for every existing feature that reads
+  // job.productId (the publish flow, GenerationReview's "Publish to" card, Job History, etc.) —
+  // nothing downstream needs to know the product didn't exist at generation time.
+  async setProductId(jobId, productId) {
+    await repo.update(jobId, { productId });
+  },
+
   async findByShop(shopDomain, { status, contentType, batchId, limit = 50 } = {}) {
     let query = repo.collection().where('shopDomain', '==', shopDomain);
     if (status) query = query.where('status', '==', status);

@@ -206,3 +206,80 @@ describe('GET /api/jobs/:jobId', () => {
     expect(new Date(res.body.job.createdAt).toString()).not.toBe('Invalid Date');
   });
 });
+
+describe('POST /api/jobs/:jobId/create-product', () => {
+  it('404s for a job that belongs to a different shop', async () => {
+    await firestore.collection('jobs').doc('foreign-job-2').set({ shopDomain: 'someone-else.myshopify.com' });
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/api/jobs/foreign-job-2/create-product')
+      .set(await authHeader())
+      .send({ title: 'My new product' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('creates a bare product via productCreate and backfills productId onto the job', async () => {
+    await firestore.collection('jobs').doc('no-product-job').set({ shopDomain: SHOP, status: 'succeeded', variations: [] });
+    vi.spyOn(shopify.api.clients.Graphql.prototype, 'request').mockResolvedValueOnce({
+      data: {
+        productCreate: {
+          product: { id: 'gid://shopify/Product/999', title: 'My new product' },
+          userErrors: [],
+        },
+      },
+      headers: {},
+    });
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/api/jobs/no-product-job/create-product')
+      .set(await authHeader())
+      .send({ title: 'My new product' });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ created: true, productId: 'gid://shopify/Product/999', productTitle: 'My new product' });
+
+    const job = await firestore.collection('jobs').doc('no-product-job').get();
+    expect(job.data().productId).toBe('gid://shopify/Product/999');
+  });
+
+  it('is idempotent — a job that already has a productId returns it instead of creating a second product', async () => {
+    await firestore.collection('jobs').doc('already-has-product').set({
+      shopDomain: SHOP,
+      status: 'succeeded',
+      variations: [],
+      productId: 'gid://shopify/Product/111',
+    });
+    const graphqlSpy = vi.spyOn(shopify.api.clients.Graphql.prototype, 'request');
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/api/jobs/already-has-product/create-product')
+      .set(await authHeader())
+      .send({ title: 'Ignored' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ created: false, productId: 'gid://shopify/Product/111' });
+    expect(graphqlSpy).not.toHaveBeenCalled();
+  });
+
+  it('422s when Shopify returns userErrors, and never sets productId on the job', async () => {
+    await firestore.collection('jobs').doc('product-create-fails').set({ shopDomain: SHOP, status: 'succeeded', variations: [] });
+    vi.spyOn(shopify.api.clients.Graphql.prototype, 'request').mockResolvedValueOnce({
+      data: { productCreate: { product: null, userErrors: [{ field: ['title'], message: 'Title cannot be blank' }] } },
+      headers: {},
+    });
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/api/jobs/product-create-fails/create-product')
+      .set(await authHeader())
+      .send({ title: 'x' });
+
+    expect(res.status).toBe(422);
+    const job = await firestore.collection('jobs').doc('product-create-fails').get();
+    expect(job.data().productId).toBeUndefined();
+  });
+});

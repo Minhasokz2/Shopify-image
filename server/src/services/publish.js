@@ -20,6 +20,23 @@ const PRODUCT_CREATE_MEDIA_MUTATION = `#graphql
   }
 `;
 
+const PRODUCT_CREATE_MUTATION = `#graphql
+  mutation productCreate($product: ProductCreateInput!) {
+    productCreate(product: $product) {
+      product { id title }
+      userErrors { field message }
+    }
+  }
+`;
+
+export class ProductCreateError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ProductCreateError';
+    this.statusCode = 422;
+  }
+}
+
 // Publishes a job's approved variations to the product's Shopify media gallery. claimPublish()
 // atomically guarantees a job can only ever be published once; if the Shopify call itself fails,
 // the claim is released so a subsequent retry isn't permanently locked out (spec Section 13/17:
@@ -63,4 +80,38 @@ export async function publishJobToShopify({ session, jobId, productId, approvedI
     await releasePublishClaim(jobId);
     throw error;
   }
+}
+
+// Lets a merchant create a brand-new Shopify product from a job that has no productId at all —
+// e.g. one generated from an uploaded reference image rather than an existing catalog item (see
+// CustomPromptStudio.jsx's upload tab). Deliberately creates a BARE product (title only, no media
+// yet) and just backfills job.productId, rather than duplicating publishJobToShopify's media-
+// attach logic here: once productId is set, the job is indistinguishable from any
+// catalog-originated job, so the merchant's very next action ("Publish approved") goes through
+// the exact same, already-tested publish flow above with no special-casing needed.
+//
+// Idempotent by simple re-read rather than a claim/release pair like publishJobToShopify — a
+// second call for a job that already has a productId just returns the existing one instead of
+// creating (and orphaning) a second product. Caller (routes/api/jobs.js) is responsible for the
+// job-exists/shop-ownership 404 check, same division of labor as publishJobToShopify above.
+export async function createProductForJob({ session, jobId, title }) {
+  const job = await jobsRepo.getById(jobId);
+  if (job.productId) {
+    return { created: false, productId: job.productId };
+  }
+
+  const client = new shopify.api.clients.Graphql({ session });
+  const response = await client.request(PRODUCT_CREATE_MUTATION, {
+    variables: { product: { title } },
+  });
+
+  const userErrors = response.data?.productCreate?.userErrors ?? [];
+  if (userErrors.length > 0) {
+    throw new ProductCreateError(userErrors.map((error) => error.message).join('; '));
+  }
+
+  const product = response.data.productCreate.product;
+  await jobsRepo.setProductId(jobId, product.id);
+
+  return { created: true, productId: product.id, productTitle: product.title };
 }

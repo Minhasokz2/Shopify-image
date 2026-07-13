@@ -18,6 +18,7 @@ import {
   Box,
   ProgressBar,
   Thumbnail,
+  Tabs,
 } from '@shopify/polaris';
 import { ProductIcon, PersonIcon, CreditCardIcon, ExitIcon, WandIcon, ImagesIcon, ClockIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
@@ -61,8 +62,14 @@ function StatBlock({ value, label }) {
   );
 }
 
+const QUICK_GENERATE_TABS = [
+  { id: 'catalog', content: 'From my catalog' },
+  { id: 'upload', content: 'Upload & write a prompt' },
+];
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [quickGenerateTab, setQuickGenerateTab] = useState(0);
   const { data, isLoading, error } = useRecentJobs();
   const { data: googleAccount } = useGoogleAccount();
   const { data: creditData } = useCreditBalance();
@@ -155,28 +162,50 @@ export default function Dashboard() {
         </Layout.Section>
 
         <Layout.Section>
-          <Card>
-            <BlockStack gap="300">
+          <Card padding="0">
+            <Box padding="400" paddingBlockEnd="0">
               <SectionHeading icon={WandIcon}>Quick generate</SectionHeading>
+            </Box>
+            <Tabs tabs={QUICK_GENERATE_TABS} selected={quickGenerateTab} onSelect={setQuickGenerateTab} />
+            <Box padding="400">
               {/* UGC and video quick-actions are temporarily hidden — their providers (OpenAI,
                   WaveSpeed) aren't configured with real credentials yet. Re-add as sibling tiles
-                  inside this same Box once they are. */}
-              <Box background="bg-surface-secondary" padding="400" borderRadius="300">
-                <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
-                  <BlockStack gap="100">
-                    <Text as="h3" variant="headingSm">
-                      Scene photos
-                    </Text>
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      Turn your catalog images into studio-quality product scenes.
-                    </Text>
-                  </BlockStack>
-                  <Button variant="primary" icon={WandIcon} onClick={() => navigate('/products')}>
-                    Generate scene photos
-                  </Button>
-                </InlineStack>
-              </Box>
-            </BlockStack>
+                  inside these same Boxes once they are. */}
+              {quickGenerateTab === 0 ? (
+                <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                  <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                    <BlockStack gap="100">
+                      <Text as="h3" variant="headingSm">
+                        Scene photos
+                      </Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Turn your catalog images into studio-quality product scenes.
+                      </Text>
+                    </BlockStack>
+                    <Button variant="primary" icon={WandIcon} onClick={() => navigate('/products')}>
+                      Generate scene photos
+                    </Button>
+                  </InlineStack>
+                </Box>
+              ) : (
+                <Box background="bg-surface-secondary" padding="400" borderRadius="300">
+                  <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                    <BlockStack gap="100">
+                      <Text as="h3" variant="headingSm">
+                        Upload your own image
+                      </Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        No product needed — upload a reference photo, write your own prompt, and
+                        pick which AI model generates it.
+                      </Text>
+                    </BlockStack>
+                    <Button variant="primary" icon={WandIcon} onClick={() => navigate('/custom-generate')}>
+                      Upload & generate
+                    </Button>
+                  </InlineStack>
+                </Box>
+              )}
+            </Box>
           </Card>
         </Layout.Section>
 
