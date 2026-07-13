@@ -27,18 +27,17 @@ export class UnknownModelError extends Error {
   }
 }
 
-// A job is priced by exactly one of two catalogs: a template (fixed prompt+model+cost, always
-// produces a fixed number of variations — cost is per-job, unchanged regardless of output count)
-// or an admin-allowed model (merchant supplies their own prompt AND picks how many images to
-// generate — cost is per-image, so the total scales with `numImages`, which is exactly what
-// stops a merchant from accidentally paying for more images than they wanted). Every cost lookup
-// in this file goes through here so there's one place that decides which catalog wins — never
-// both, never trusted from the client either way (spec Section 13/17).
+// A job is priced by exactly one of two catalogs: a template (admin-curated prompt+model) or an
+// admin-allowed model (merchant supplies their own prompt). Either way `creditCost` on the
+// catalog record is a PER-IMAGE rate, and the total scales with `numImages` — the merchant picks
+// how many variations to generate, and pays for exactly that many, never a fixed batch. Every
+// cost lookup in this file goes through here so there's one place that decides which catalog
+// wins — never both, never trusted from the client either way (spec Section 13/17).
 async function resolvePricing({ templateId, modelId, numImages = 1 }) {
   if (templateId) {
     const template = await templatesRepo.getById(templateId);
     if (!template) throw new UnknownTemplateError(templateId);
-    return { creditCost: template.creditCost, record: template };
+    return { creditCost: template.creditCost * numImages, record: template };
   }
   const model = await allowedModelsRepo.getById(modelId);
   if (!model || !model.active) throw new UnknownModelError(modelId);
@@ -95,8 +94,9 @@ export async function settleJobSuccess({ jobId, shopDomain, templateId, modelId,
     // numImages lives on the job doc itself (set once, at creation, by the server) rather than
     // being passed in again here — same principle as re-reading the pricing doc instead of
     // trusting a cost the caller computed: settlement never trusts anything it didn't just look
-    // up itself from a source of truth.
-    const cost = templateId ? pricingDoc.data().creditCost : pricingDoc.data().creditCost * (job.numImages ?? 1);
+    // up itself from a source of truth. Applies to both catalogs — creditCost is always a
+    // per-image rate (see resolvePricing above).
+    const cost = pricingDoc.data().creditCost * (job.numImages ?? 1);
     const isUnlimited = shop.plan === 'unlimited';
 
     tx.update(jobRef, {

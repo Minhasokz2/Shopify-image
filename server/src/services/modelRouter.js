@@ -57,6 +57,7 @@ export async function executeGeneration({
   brandStyleProfile,
   motionPrompt,
   aspectRatio,
+  numImages,
   onStage,
 }) {
   const model = routeModel({ contentType, productCategoryTag, templateId, templates });
@@ -70,7 +71,7 @@ export async function executeGeneration({
 
   switch (contentType) {
     case 'scene': {
-      const variationUrls = await generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile });
+      const variationUrls = await generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages });
       return { model, cleanImageUrl, variationUrls };
     }
     case 'ugc': {

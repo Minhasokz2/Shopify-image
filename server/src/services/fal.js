@@ -185,23 +185,25 @@ export async function removeBackground(imageUrl) {
   return result.data.image.url;
 }
 
-// Step 2 for static scenes (template flow — fixed prompt, always exactly one source image, always
-// a fixed batch of 4 — unlike the custom flow, template cost is flat/per-job, not per-image).
-// `productAttributes.color` is threaded into the prompt as an explicit product-fidelity lock.
-// Checks CUSTOM_SCENE_MODELS first (original 5, untouched logic), then the TEMPLATE-compatible
-// subset of EXTENDED_ALLOWED_MODELS (see TEMPLATE_COMPATIBLE_EXTENDED_IDS above) — dual_image
-// models are deliberately never reachable here even if somehow assigned to a template's
-// preferredModel, since routes/admin/templates.js's own enum already keeps them out; this check
-// is the second, defense-in-depth layer.
-export async function generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
+// Step 2 for static scenes (template flow — fixed prompt, always exactly one source image).
+// `numImages` (1-4) is merchant-chosen per generation and priced per-image (creditLedger.js) —
+// defaults to 4 here only for callers (tests) that don't pass it explicitly; real jobs
+// (jobWorker.js) always pass the job's actual numImages. `productAttributes.color` is threaded
+// into the prompt as an explicit product-fidelity lock. Checks CUSTOM_SCENE_MODELS first
+// (original 5, untouched logic), then the TEMPLATE-compatible subset of EXTENDED_ALLOWED_MODELS
+// (see TEMPLATE_COMPATIBLE_EXTENDED_IDS above) — dual_image models are deliberately never
+// reachable here even if somehow assigned to a template's preferredModel, since
+// routes/admin/templates.js's own enum already keeps them out; this check is the second,
+// defense-in-depth layer.
+export async function generateScene({ model, cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages = 4 }) {
   const sceneConfig = CUSTOM_SCENE_MODELS[model];
   if (sceneConfig) {
-    return generateSceneFromCatalog(sceneConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile });
+    return generateSceneFromCatalog(sceneConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages });
   }
 
   const extendedConfig = EXTENDED_ALLOWED_MODELS[model];
   if (extendedConfig && TEMPLATE_COMPATIBLE_SHAPES.has(extendedConfig.inputShape)) {
-    return generateSceneFromExtendedCatalog(extendedConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile });
+    return generateSceneFromExtendedCatalog(extendedConfig, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages });
   }
 
   throw new Error(`Unknown scene model: ${model}`);
@@ -215,10 +217,10 @@ function buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile
   return `${stylePrefix}${lockRules} Scene: ${promptTemplate}`;
 }
 
-async function generateSceneFromCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
+async function generateSceneFromCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages }) {
   const input = {
     prompt: buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile }),
-    num_images: 4,
+    num_images: numImages,
     [config.imageParam]: config.imageParam === 'image_urls' ? [cleanImageUrl] : cleanImageUrl,
   };
 
@@ -226,26 +228,26 @@ async function generateSceneFromCatalog(config, { cleanImageUrl, promptTemplate,
   return result.data.images.map((img) => img.url);
 }
 
-async function generateSceneFromExtendedCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile }) {
+async function generateSceneFromExtendedCatalog(config, { cleanImageUrl, promptTemplate, productAttributes, brandStyleProfile, numImages }) {
   const prompt = buildScenePrompt({ promptTemplate, productAttributes, brandStyleProfile });
 
   if (config.inputShape === 'image_urls_prompt') {
-    const result = await fal.subscribe(config.endpoint, { input: { prompt, num_images: 4, image_urls: [cleanImageUrl] } });
+    const result = await fal.subscribe(config.endpoint, { input: { prompt, num_images: numImages, image_urls: [cleanImageUrl] } });
     return result.data.images.map((img) => img.url);
   }
 
   if (config.inputShape === 'image_urls_angles') {
     const result = await fal.subscribe(config.endpoint, {
-      input: { image_urls: [cleanImageUrl], additional_prompt: prompt, num_images: 4 },
+      input: { image_urls: [cleanImageUrl], additional_prompt: prompt, num_images: numImages },
     });
     return result.data.images.map((img) => img.url);
   }
 
-  // 'image_only' / 'image_and_prompt' — no native batch parameter, so produce the template's
-  // fixed batch of 4 by calling the endpoint 4 times in parallel, same as generateCustomScene's
+  // 'image_only' / 'image_and_prompt' — no native batch parameter, so produce the requested
+  // batch by calling the endpoint numImages times in parallel, same as generateCustomScene's
   // equivalent loop.
   const input = config.inputShape === 'image_and_prompt' ? { image_url: cleanImageUrl, prompt } : { image_url: cleanImageUrl };
-  const results = await Promise.all(Array.from({ length: 4 }, () => fal.subscribe(config.endpoint, { input })));
+  const results = await Promise.all(Array.from({ length: numImages }, () => fal.subscribe(config.endpoint, { input })));
   return results.map((result) => extractUrl(result, config.outputField));
 }
 

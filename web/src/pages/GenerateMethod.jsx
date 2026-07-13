@@ -1,15 +1,22 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box } from '@shopify/polaris';
+import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box, Modal } from '@shopify/polaris';
 import { ImagesIcon, EditIcon } from '@shopify/polaris-icons';
 import { SectionHeading } from '../components/SectionHeading.jsx';
+import { TemplatePicker } from '../components/TemplatePicker.jsx';
 
 // The fork between the two ways to generate: a fixed-prompt template (fast, admin-curated) or a
 // merchant-written custom prompt against an admin-allowed model (flexible, scene photos only).
 // Both branches receive the same selectedProducts state so neither has to refetch the catalog.
+// "Use a template" opens the picker as a popup right here instead of navigating away — the
+// product is already selected by this point, so there's nothing the full /templates page offers
+// that the popup doesn't; TemplateGallery.jsx still exists for the top-nav "browse with no
+// product yet" entry point, reusing the exact same TemplatePicker content.
 export default function GenerateMethod() {
   const navigate = useNavigate();
   const location = useLocation();
   const selectedProducts = location.state?.selectedProducts ?? [];
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
 
   return (
     <Page
@@ -45,7 +52,7 @@ export default function GenerateMethod() {
                       <Button
                         variant="primary"
                         disabled={selectedProducts.length === 0}
-                        onClick={() => navigate('/templates', { state: { selectedProducts } })}
+                        onClick={() => setTemplatesModalOpen(true)}
                       >
                         Browse templates
                       </Button>
@@ -75,6 +82,24 @@ export default function GenerateMethod() {
           </InlineStack>
         </Layout.Section>
       </Layout>
+
+      {templatesModalOpen ? (
+        <Modal open onClose={() => setTemplatesModalOpen(false)} title="Choose a template" size="large">
+          <Modal.Section>
+            <TemplatePicker
+              selectedProducts={selectedProducts}
+              onGenerated={(jobId) => {
+                setTemplatesModalOpen(false);
+                navigate(`/review/${jobId}`);
+              }}
+              onOpenTryOn={() => {
+                setTemplatesModalOpen(false);
+                navigate('/try-on');
+              }}
+            />
+          </Modal.Section>
+        </Modal>
+      ) : null}
     </Page>
   );
 }

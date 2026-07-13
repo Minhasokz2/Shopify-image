@@ -38,6 +38,9 @@ export const generationInputSchema = z
     modelId: z.string().min(1).optional(),
     customPrompt: z.string().min(1).max(4000).optional(),
     imageUrls: z.array(z.string().url()).min(1).max(6).optional(),
+
+    // Shared by both modes — how many variations to generate. Defaults to 1 if omitted (see
+    // createGenerationJob below); cost scales linearly with it either way (creditLedger.js).
     numImages: z.coerce.number().int().min(1).max(4).optional(),
   })
   .superRefine((body, ctx) => {
@@ -95,7 +98,7 @@ export async function createGenerationJob({ shopDomain, input, idempotencyKey, b
 
   await assertSufficientCredits(
     shopDomain,
-    isCustom ? { modelId: body.modelId, numImages } : { templateId: body.templateId },
+    isCustom ? { modelId: body.modelId, numImages } : { templateId: body.templateId, numImages },
   );
 
   let cleanImageUrl = null;
@@ -119,7 +122,7 @@ export async function createGenerationJob({ shopDomain, input, idempotencyKey, b
       templateId: isCustom ? null : body.templateId,
       modelId: isCustom ? body.modelId : null,
       customPrompt: isCustom ? body.customPrompt : null,
-      numImages: isCustom ? numImages : null,
+      numImages,
       personaSettings: body.personaSettings ?? null,
       productCategoryTag: body.productCategoryTag ?? null,
       productAttributes: body.productAttributes ?? null,

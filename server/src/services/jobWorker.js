@@ -148,6 +148,7 @@ class JobWorker {
       brandStyleProfile: shop?.brandStyleProfile ?? null,
       motionPrompt: template.promptTemplate,
       aspectRatio: job.aspectRatio,
+      numImages: job.numImages ?? 1,
       onStage,
     });
 
