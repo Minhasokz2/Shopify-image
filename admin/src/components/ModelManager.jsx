@@ -24,6 +24,7 @@ export function ModelManager({ onLogout }) {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [seeding, setSeeding] = useState(false);
 
   const loadModels = async () => {
     setLoading(true);
@@ -89,12 +90,31 @@ export function ModelManager({ onLogout }) {
     }
   };
 
+  // Re-runs services/allowedModelsSeedData.js's upsert list (the same thing `npm run seed:models`
+  // does via Shell) — for admins on a Render plan without Shell access. Safe to click repeatedly.
+  const handleSeed = async () => {
+    setSeeding(true);
+    setLoadError(null);
+    try {
+      const { count } = await adminClient.post('/seed-models', {});
+      setNotice(`Seeded/updated ${count} models from the built-in catalog.`);
+      await loadModels();
+    } catch (err) {
+      setLoadError(err.message || 'Failed to seed models.');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <Page
       title="Allowed models"
       subtitle="Models merchants may pick directly for custom-prompt generation. Shared across every merchant — changes take effect immediately."
       primaryAction={{ content: 'New model', onAction: () => setCreating(true) }}
-      secondaryActions={[{ content: 'Sign out', onAction: onLogout }]}
+      secondaryActions={[
+        { content: 'Re-seed built-in catalog', onAction: handleSeed, loading: seeding },
+        { content: 'Sign out', onAction: onLogout },
+      ]}
     >
       {notice ? (
         <div style={{ marginBottom: '1rem' }}>
