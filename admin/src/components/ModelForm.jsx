@@ -40,6 +40,11 @@ const FAL_MODEL_OPTIONS = [
   { value: 'imagen4-preview', label: 'Google Imagen 4 (preview) — high-quality photorealistic, no image needed' },
   { value: 'flux-schnell', label: 'FLUX.1 [schnell] (fastest/cheapest) — quick drafts, no image needed' },
   { value: 'recraft-v3-text', label: 'Recraft V3 (design/vector styles) — brand colors + style presets, no image needed' },
+  { value: 'seedream-v5-pro-text', label: 'Seedream 5.0 Pro (text-to-image, latest) — dense layouts/structured designs, no image needed' },
+  { value: 'gemini-3-pro-text', label: 'Gemini 3 Pro Image (text-to-image, premium) — Google\'s latest, no image needed' },
+  { value: 'qwen-image-text', label: 'Qwen Image (text-to-image, budget) — strong complex text rendering, no image needed' },
+  { value: 'flux-2-text', label: 'FLUX.2 [dev] (text-to-image) — enhanced realism/typography, no image needed' },
+  { value: 'grok-imagine-text', label: 'Grok Imagine (text-to-image) — xAI\'s image model, no image needed' },
 ];
 
 // Only models that genuinely combine more than one merchant-selected image into one generation.
@@ -84,11 +89,25 @@ const REAL_COST_PER_IMAGE_USD = {
   'imagen4-preview': 0.04,
   'flux-schnell': 0.0024,
   'recraft-v3-text': 0.08, // worst-cased at the vector-style rate (2x the $0.04 raster rate)
+  'seedream-v5-pro-text': 0.0675,
+  'gemini-3-pro-text': 0.15,
+  'qwen-image-text': 0.0157,
+  'flux-2-text': 0.0084,
+  'grok-imagine-text': 0.02,
 };
 
 // True for costs converted from a per-megapixel/per-compute-second unit rather than fal's own
 // stated per-image/per-generation price — shown as "~" in the margin calculator.
-const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle', 'flux-schnell']);
+const APPROXIMATE_COST_MODELS = new Set([
+  'birefnet',
+  'rembg',
+  'topaz-upscale',
+  'seedvr-upscale',
+  'qwen-multi-angle',
+  'flux-schnell',
+  'qwen-image-text',
+  'flux-2-text',
+]);
 
 // Real input schema for each FAL endpoint, verified live via mcp__fal-ai__get_model_schema —
 // not guessed. Purely informational (the pipeline always sends fixed defaults: prompt, the
@@ -233,6 +252,31 @@ const MODEL_PARAMETERS = {
     endpoint: 'fal-ai/recraft/v3/text-to-image',
     imageInput: 'NONE — pure text-to-image. Vector/illustration styles cost 2x the raster rate (worst-cased into this model\'s credit price).',
     params: ['style: realistic_image | digital_illustration/* | vector_illustration/* (huge enum, incl. line_art/infographical/cutout)', 'colors (array — brand-color hints)', 'image_size: preset enum (default square_hd)'],
+  },
+  'seedream-v5-pro-text': {
+    endpoint: 'bytedance/seedream/v5/pro/text-to-image',
+    imageInput: 'NONE — pure text-to-image. ByteDance\'s newest flagship — deep prompt understanding, native text in 14 languages, precise dense-layout control.',
+    params: ['image_size: preset or object, 1024x1024–2048x2048 (default auto_2K)', 'output_format: jpeg | png (default jpeg)', 'enable_safety_checker (default true)'],
+  },
+  'gemini-3-pro-text': {
+    endpoint: 'fal-ai/gemini-3-pro-image-preview',
+    imageInput: 'NONE — pure text-to-image. Google\'s latest/highest-fidelity image model (the text-to-image form of the same model behind the already-seeded nano-banana-pro edit endpoint).',
+    params: ['resolution: 1K | 2K | 4K (default 1K) — driver of this model’s cost', 'aspect_ratio (default 1:1)', 'safety_tolerance: 1–6 (default 4)', 'enable_web_search (default false)', 'seed (integer, optional)'],
+  },
+  'qwen-image-text': {
+    endpoint: 'fal-ai/qwen-image',
+    imageInput: 'NONE — pure text-to-image. Strong at complex/dense text rendering inside the image.',
+    params: ['image_size: preset enum (default landscape_4_3)', 'negative_prompt (optional)', 'num_inference_steps (default 30)', 'use_turbo (default false) — faster, lower-quality tier', 'guidance_scale (default 2.5)'],
+  },
+  'flux-2-text': {
+    endpoint: 'fal-ai/flux-2',
+    imageInput: 'NONE — pure text-to-image. Enhanced realism/typography vs. the original FLUX.1 line.',
+    params: ['image_size: preset enum, 512–2048px (default landscape_4_3)', 'num_inference_steps (default 28)', 'acceleration: none | regular | high (default regular)', 'enable_prompt_expansion (default false)'],
+  },
+  'grok-imagine-text': {
+    endpoint: 'xai/grok-imagine-image',
+    imageInput: 'NONE — pure text-to-image. xAI\'s Grok image model.',
+    params: ['resolution: 1k | 2k (default 1k)', 'aspect_ratio (default 1:1, many presets)', 'output_format: jpeg | png | webp (default jpeg)'],
   },
 };
 

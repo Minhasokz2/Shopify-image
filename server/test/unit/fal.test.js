@@ -137,8 +137,8 @@ describe('generateScene: request shape per model (template flow)', () => {
 // SCENE_MODEL_IDS/templates, since dual-image roles don't fit the fixed-prompt template flow. See
 // fal.js's EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
 describe('generateCustomScene: extended Allowed-Models catalog', () => {
-  it('exposes all 20 allowed models (5 scene + 11 extended + 4 text-to-image)', () => {
-    expect(ALLOWED_MODEL_IDS).toHaveLength(20);
+  it('exposes all 25 allowed models (5 scene + 11 extended + 9 text-to-image)', () => {
+    expect(ALLOWED_MODEL_IDS).toHaveLength(25);
     expect(ALLOWED_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
@@ -349,8 +349,18 @@ describe('getImageCountConstraint', () => {
 });
 
 describe('generateTextToImage: genuine text-to-image models (no image input at all)', () => {
-  it('exposes exactly the 4 verified text-to-image models', () => {
-    expect(TEXT_TO_IMAGE_MODEL_IDS).toEqual(['ideogram-v4-text', 'imagen4-preview', 'flux-schnell', 'recraft-v3-text']);
+  it('exposes exactly the 9 verified text-to-image models', () => {
+    expect(TEXT_TO_IMAGE_MODEL_IDS).toEqual([
+      'ideogram-v4-text',
+      'imagen4-preview',
+      'flux-schnell',
+      'recraft-v3-text',
+      'seedream-v5-pro-text',
+      'gemini-3-pro-text',
+      'qwen-image-text',
+      'flux-2-text',
+      'grok-imagine-text',
+    ]);
   });
 
   it('isTextToImageModel is true for each of them and false for an image-editing model', () => {
@@ -383,6 +393,35 @@ describe('generateTextToImage: genuine text-to-image models (no image input at a
   it('recraft-v3-text calls fal-ai/recraft/v3/text-to-image', async () => {
     await generateTextToImage({ model: 'recraft-v3-text', prompt: 'A vector-style logo', numImages: 1 });
     expect(subscribe).toHaveBeenCalledWith('fal-ai/recraft/v3/text-to-image', { input: { prompt: 'A vector-style logo', num_images: 1 } });
+  });
+
+  it('seedream-v5-pro-text calls bytedance/seedream/v5/pro/text-to-image', async () => {
+    await generateTextToImage({ model: 'seedream-v5-pro-text', prompt: 'A dense infographic layout', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('bytedance/seedream/v5/pro/text-to-image', {
+      input: { prompt: 'A dense infographic layout', num_images: 1 },
+    });
+  });
+
+  it('gemini-3-pro-text calls fal-ai/gemini-3-pro-image-preview', async () => {
+    await generateTextToImage({ model: 'gemini-3-pro-text', prompt: 'A premium studio backdrop', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/gemini-3-pro-image-preview', {
+      input: { prompt: 'A premium studio backdrop', num_images: 1 },
+    });
+  });
+
+  it('qwen-image-text calls fal-ai/qwen-image', async () => {
+    await generateTextToImage({ model: 'qwen-image-text', prompt: 'A poster with dense text', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/qwen-image', { input: { prompt: 'A poster with dense text', num_images: 1 } });
+  });
+
+  it('flux-2-text calls fal-ai/flux-2', async () => {
+    await generateTextToImage({ model: 'flux-2-text', prompt: 'A realistic scene', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/flux-2', { input: { prompt: 'A realistic scene', num_images: 1 } });
+  });
+
+  it('grok-imagine-text calls xai/grok-imagine-image', async () => {
+    await generateTextToImage({ model: 'grok-imagine-text', prompt: 'An aesthetic image', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('xai/grok-imagine-image', { input: { prompt: 'An aesthetic image', num_images: 1 } });
   });
 
   it('defaults numImages to 1 when omitted', async () => {

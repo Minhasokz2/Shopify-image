@@ -176,6 +176,13 @@ const TEXT_TO_IMAGE_MODELS = {
   'imagen4-preview': { endpoint: 'fal-ai/imagen4/preview' },
   'flux-schnell': { endpoint: 'fal-ai/flux/schnell' },
   'recraft-v3-text': { endpoint: 'fal-ai/recraft/v3/text-to-image' },
+  // Added in a later pass — same verification standard (get_model_schema confirmed prompt +
+  // num_images in, images array out, no image_url/image_urls param at all).
+  'seedream-v5-pro-text': { endpoint: 'bytedance/seedream/v5/pro/text-to-image' },
+  'gemini-3-pro-text': { endpoint: 'fal-ai/gemini-3-pro-image-preview' }, // latest Gemini image model (aka Nano Banana Pro's text-to-image form)
+  'qwen-image-text': { endpoint: 'fal-ai/qwen-image' },
+  'flux-2-text': { endpoint: 'fal-ai/flux-2' },
+  'grok-imagine-text': { endpoint: 'xai/grok-imagine-image' },
 };
 
 export const TEXT_TO_IMAGE_MODEL_IDS = Object.keys(TEXT_TO_IMAGE_MODELS);

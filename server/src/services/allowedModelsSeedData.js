@@ -182,6 +182,46 @@ const EXTENDED_MODELS = [
     creditCost: 2, // real cost $0.04-0.08/image (2x for vector styles, worst-cased); margin at 2cr: 65-78%
     supportsMultiImage: false,
   },
+  // Added in a later pass — same verification standard (get_model_schema + get_pricing checked
+  // live, not guessed). All 5 confirmed to take only {prompt, num_images} and return an `images`
+  // array, so fal.js's generateTextToImage needs no new branching to support them.
+  {
+    id: 'seedream-v5-pro-text',
+    falModel: 'seedream-v5-pro-text',
+    label: 'Seedream 5.0 Pro (text-to-image, latest)',
+    creditCost: 2, // real cost $0.0675/image; creditCost 1 was under the 50%-margin floor (41%) —
+    // bumped to restore it, same reasoning as gemini-3-1-flash-retouch.
+    supportsMultiImage: false,
+  },
+  {
+    id: 'gemini-3-pro-text',
+    falModel: 'gemini-3-pro-text',
+    label: 'Gemini 3 Pro Image (text-to-image, premium)',
+    creditCost: 3, // real cost $0.15/image at default 1K res — identical cost/margin math to the
+    // already-seeded nano-banana-pro (its image-editing sibling): 3cr, 57-72% margin.
+    supportsMultiImage: false,
+  },
+  {
+    id: 'qwen-image-text',
+    falModel: 'qwen-image-text',
+    label: 'Qwen Image (text-to-image, budget)',
+    creditCost: 1, // ~$0.0157/image (per-megapixel, estimated at the ~0.8MP default size); margin at 1cr: 86%+
+    supportsMultiImage: false,
+  },
+  {
+    id: 'flux-2-text',
+    falModel: 'flux-2-text',
+    label: 'FLUX.2 [dev] (text-to-image)',
+    creditCost: 1, // ~$0.0084/image (per-compute-second, estimated for a ~5s generation); margin at 1cr: 92%+
+    supportsMultiImage: false,
+  },
+  {
+    id: 'grok-imagine-text',
+    falModel: 'grok-imagine-text',
+    label: 'Grok Imagine (text-to-image)',
+    creditCost: 1, // real cost $0.02/image at 1K res; margin at 1cr: 82%+
+    supportsMultiImage: false,
+  },
 ].map((m) => ({ active: true, ...m, category: 'scene' }));
 
 export const ALL_SEED_MODELS = [...SCENE_MODELS, ...EXTENDED_MODELS];
