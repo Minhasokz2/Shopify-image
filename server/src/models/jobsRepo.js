@@ -108,14 +108,33 @@ export const jobsRepo = {
     await repo.update(jobId, { productId });
   },
 
+  // Firestore needs a manually-created composite index for every distinct combination of
+  // equality filters + orderBy (see scripts/createFirestoreIndexes.md) — only the 3 single-filter
+  // combos (shopDomain+status, shopDomain+contentType, shopDomain+batchId) are indexed. Job
+  // History's status and content-type dropdowns are independent, though, so a merchant can pick
+  // both at once — combining two of them in the SAME Firestore query would need a 4th,
+  // undocumented composite index and throw a missing-index error the first time anyone actually
+  // does that. So at most ONE equality filter is ever sent to Firestore; any second filter is
+  // applied in memory on the result instead, over a wider candidate window so narrowing it
+  // afterward doesn't silently return fewer than `limit` matches when more actually exist.
   async findByShop(shopDomain, { status, contentType, batchId, limit = 50 } = {}) {
+    const [firestoreFilter, ...inMemoryFilters] = [
+      status && ['status', status],
+      contentType && ['contentType', contentType],
+      batchId && ['batchId', batchId],
+    ].filter(Boolean);
+
     let query = repo.collection().where('shopDomain', '==', shopDomain);
-    if (status) query = query.where('status', '==', status);
-    if (contentType) query = query.where('contentType', '==', contentType);
-    if (batchId) query = query.where('batchId', '==', batchId);
-    query = query.orderBy('createdAt', 'desc').limit(limit);
+    if (firestoreFilter) query = query.where(firestoreFilter[0], '==', firestoreFilter[1]);
+    const fetchLimit = inMemoryFilters.length > 0 ? Math.max(limit * 4, 200) : limit;
+    query = query.orderBy('createdAt', 'desc').limit(fetchLimit);
+
     const snapshot = await query.get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    let jobs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    for (const [field, value] of inMemoryFilters) {
+      jobs = jobs.filter((job) => job[field] === value);
+    }
+    return jobs.slice(0, limit);
   },
 
   async findActiveByShop(shopDomain) {

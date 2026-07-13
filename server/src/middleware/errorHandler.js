@@ -31,8 +31,17 @@ export function errorHandler(error, req, res, next) {
 
   const statusCode = error.statusCode ?? 500;
   logger.error({ err: error, path: req.path, shopDomain: req.shopDomain }, 'Request failed');
+
+  // Every 4xx here comes from an error class this app throws deliberately (InsufficientCreditsError,
+  // PublishError, etc.) with a message written to be shown to the merchant — safe to return as-is.
+  // A 5xx, by contrast, is always something UNEXPECTED (a Firestore outage, a provider SDK
+  // exception, a bug) — error.message at that point is an internal implementation detail (a raw
+  // Firestore/fal.ai/OpenAI SDK error string), not merchant-facing copy, and returning it verbatim
+  // risks leaking internal details. Full detail still goes to Sentry/logs above; the client only
+  // gets a generic message.
   if (statusCode >= 500) {
     Sentry.captureException(error);
+    return res.status(statusCode).json({ error: 'Internal server error' });
   }
   return res.status(statusCode).json({ error: error.message || 'Internal server error' });
 }

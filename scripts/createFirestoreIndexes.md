@@ -11,6 +11,14 @@ Firestore Database → Indexes, or via `firebase deploy --only firestore:indexes
 | `jobs` | `shopDomain` ASC, `status` ASC, `createdAt` DESC | `jobsRepo.findByShop({ status })` — Job History filtered by status |
 | `jobs` | `shopDomain` ASC, `contentType` ASC, `createdAt` DESC | `jobsRepo.findByShop({ contentType })` — Job History filtered by content type |
 | `jobs` | `shopDomain` ASC, `batchId` ASC, `createdAt` DESC | `jobsRepo.findByShop({ batchId })` — jobs within one batch |
+
+Note: Job History's status and content-type filters are independent dropdowns, so a merchant can
+select both at once. `jobsRepo.findByShop` deliberately sends at most ONE of status/contentType/
+batchId to Firestore as an equality filter and applies any second one in memory on the result —
+there is intentionally NO 4th composite index for "shopDomain + status + contentType" (or any other
+2-filter combination). If you add a new caller that needs a genuinely different multi-filter
+Firestore-level query, either add the matching composite index here first, or extend
+`findByShop`'s in-memory-filter approach instead.
 | `jobs` | `shopDomain` ASC, `status` IN | `jobsRepo.findActiveByShop` — active-job admission control fallback |
 | `status` (single field, `IN`) | — | `jobsRepo.findResumable` — boot-time resume query |
 | `batches` | `shopDomain` ASC, `createdAt` DESC | `batchesRepo.findByShop` — Bulk Queue page |

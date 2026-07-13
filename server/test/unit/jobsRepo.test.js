@@ -86,3 +86,36 @@ describe('jobsRepo.updateProgressStage', () => {
     expect(result.claimed).toBe(false);
   });
 });
+
+describe('jobsRepo.findByShop', () => {
+  const SHOP = 'find-by-shop-test.myshopify.com';
+
+  it('filters by status and content type together without needing a 4th composite index', async () => {
+    await jobsRepo.create('job-a', { shopDomain: SHOP, status: JOB_STATUS.SUCCEEDED, contentType: 'scene' });
+    await jobsRepo.create('job-b', { shopDomain: SHOP, status: JOB_STATUS.SUCCEEDED, contentType: 'video' });
+    await jobsRepo.create('job-c', { shopDomain: SHOP, status: JOB_STATUS.FAILED, contentType: 'scene' });
+
+    const jobs = await jobsRepo.findByShop(SHOP, { status: JOB_STATUS.SUCCEEDED, contentType: 'scene' });
+
+    expect(jobs.map((j) => j.id)).toEqual(['job-a']);
+  });
+
+  it('still respects a plain single-filter query (the common case)', async () => {
+    await jobsRepo.create('job-d', { shopDomain: SHOP, status: JOB_STATUS.SUCCEEDED, contentType: 'scene' });
+    await jobsRepo.create('job-e', { shopDomain: SHOP, status: JOB_STATUS.FAILED, contentType: 'scene' });
+
+    const jobs = await jobsRepo.findByShop(SHOP, { status: JOB_STATUS.SUCCEEDED });
+
+    expect(jobs.every((j) => j.status === JOB_STATUS.SUCCEEDED)).toBe(true);
+  });
+
+  it('respects the requested limit even when a second filter is applied in memory', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await jobsRepo.create(`job-limit-${i}`, { shopDomain: SHOP, status: JOB_STATUS.SUCCEEDED, contentType: 'scene' });
+    }
+
+    const jobs = await jobsRepo.findByShop(SHOP, { status: JOB_STATUS.SUCCEEDED, contentType: 'scene', limit: 2 });
+
+    expect(jobs).toHaveLength(2);
+  });
+});
