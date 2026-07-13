@@ -82,7 +82,12 @@ class JobWorker {
         return; // nothing to do — already settled by a previous attempt
       }
 
-      await jobsRepo.markProcessing(jobId);
+      // Atomic claim (see jobsRepo.claimForProcessing) — closes the race where a Render rolling
+      // deploy or a duplicate resumeFromFirestore() call has two workers both trying to run the
+      // exact same job at once. If another worker already holds a live lease, back off instead
+      // of calling the paid generation providers a second time for the same job.
+      const { claimed } = await jobsRepo.claimForProcessing(jobId);
+      if (!claimed) return;
 
       // Best-effort — a failed progress-stage write must never fail the generation itself, so
       // errors are swallowed rather than propagated or awaited by callers that don't need to.

@@ -67,6 +67,37 @@ beforeEach(async () => {
   await firestore.collection('shops').doc(SHOP).set({ creditBalance: 0, plan: 'free' });
 });
 
+describe('GET /api/credits', () => {
+  it('defaults usage stats to 0 for a shop that has never generated anything', async () => {
+    const app = createApp();
+    const res = await request(app).get('/api/credits').set(await authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ totalImagesGenerated: 0, totalCreditsSpent: 0, estimatedSavingsUSD: 0 });
+  });
+
+  it('includes the lifetime usage/ROI stats alongside balance and plan', async () => {
+    await firestore.collection('shops').doc(SHOP).set({
+      creditBalance: 42,
+      plan: 'growth',
+      totalImagesGenerated: 8,
+      totalCreditsSpent: 24,
+    });
+
+    const app = createApp();
+    const res = await request(app).get('/api/credits').set(await authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      creditBalance: 42,
+      plan: 'growth',
+      totalImagesGenerated: 8,
+      totalCreditsSpent: 24,
+      estimatedSavingsUSD: 200, // 8 images * $25 conservative per-photo estimate
+    });
+  });
+});
+
 // The returnUrl built here must point at a route this SHOP can be reconciled from once Shopify
 // redirects the merchant's top-level (unauthenticated) browser back to it — see
 // routes/billingConfirm.js and its test file for why a plain /api/billing/confirm can't work.

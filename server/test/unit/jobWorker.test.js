@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const jobsById = new Map();
 const getById = vi.fn(async (id) => jobsById.get(id));
-const markProcessing = vi.fn(async () => {});
+const claimForProcessing = vi.fn(async () => ({ claimed: true }));
 const updateProgressStage = vi.fn(async () => {});
 const getRefUpdate = vi.fn(async () => {});
 const getRef = vi.fn(() => ({ update: getRefUpdate }));
@@ -25,7 +25,7 @@ const persistMediaToCloudinary = vi.fn(async (url) => `https://res.cloudinary.co
 const captureJobFailure = vi.fn();
 
 vi.mock('../../src/models/jobsRepo.js', () => ({
-  jobsRepo: { getById, markProcessing, getRef, updateProgressStage, findResumable: vi.fn(async () => []) },
+  jobsRepo: { getById, claimForProcessing, getRef, updateProgressStage, findResumable: vi.fn(async () => []) },
   JOB_STATUS: { PENDING: 'pending', PROCESSING: 'processing', SUCCEEDED: 'succeeded', FAILED: 'failed' },
 }));
 vi.mock('../../src/models/batchesRepo.js', () => ({ batchesRepo: { recordJobOutcome, finalizeIfComplete } }));
@@ -161,7 +161,7 @@ describe('JobWorker: runJob success/failure settlement', () => {
     const worker = new JobWorker();
     await worker.runJob('job-ok', 'shop.myshopify.com');
 
-    expect(markProcessing).toHaveBeenCalledWith('job-ok');
+    expect(claimForProcessing).toHaveBeenCalledWith('job-ok');
     expect(persistMediaToCloudinary).toHaveBeenCalledTimes(2);
     expect(settleJobSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -251,7 +251,26 @@ describe('JobWorker: runJob success/failure settlement', () => {
     await worker.runJob('already-done', 'shop.myshopify.com');
     await worker.runJob('missing-job', 'shop.myshopify.com');
 
-    expect(markProcessing).not.toHaveBeenCalled();
+    expect(claimForProcessing).not.toHaveBeenCalled();
     expect(executeGeneration).not.toHaveBeenCalled();
+  });
+
+  it('backs off without re-running generation when another worker already holds a live lease on the job', async () => {
+    claimForProcessing.mockResolvedValueOnce({ claimed: false });
+    jobsById.set('job-leased', {
+      status: 'processing',
+      shopDomain: 'shop.myshopify.com',
+      contentType: 'scene',
+      templateId: 't1',
+      productImageUrl: 'https://shop.example.com/raw.png',
+      batchId: null,
+    });
+
+    const worker = new JobWorker();
+    await worker.runJob('job-leased', 'shop.myshopify.com');
+
+    expect(executeGeneration).not.toHaveBeenCalled();
+    expect(settleJobSuccess).not.toHaveBeenCalled();
+    expect(settleJobFailure).not.toHaveBeenCalled();
   });
 });

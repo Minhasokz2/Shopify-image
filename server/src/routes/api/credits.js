@@ -26,6 +26,12 @@ function isStale(lastCheckedAt) {
   return Date.now() - lastCheckedMs > BILLING_RECHECK_INTERVAL_MS;
 }
 
+// Conservative estimate of what a single traditional product photo costs a merchant to produce
+// (a freelance/studio photographer's per-shot rate) — used only to frame the Dashboard's "value
+// you've gotten" stat, never for any pricing/billing decision. Deliberately on the low end of
+// typical freelance rates ($20-75+/shot) so the number understates rather than overstates savings.
+const ESTIMATED_PHOTOGRAPHY_COST_USD = 25;
+
 // GET /api/credits — current balance/plan, backing the Dashboard and CreditBalanceBadge.
 router.get('/credits', async (req, res) => {
   let shop = await shopsRepo.getByDomain(req.shopDomain);
@@ -36,11 +42,16 @@ router.get('/credits', async (req, res) => {
     shop = await shopsRepo.getByDomain(req.shopDomain);
   }
 
+  const totalImagesGenerated = shop?.totalImagesGenerated ?? 0;
+
   res.json({
     creditBalance: shop?.creditBalance ?? 0,
     plan: shop?.plan ?? 'free',
     billingInterval: shop?.billingInterval ?? null,
     canCancelPlan: Boolean(shop?.activePackSubscriptionId),
+    totalImagesGenerated,
+    totalCreditsSpent: shop?.totalCreditsSpent ?? 0,
+    estimatedSavingsUSD: totalImagesGenerated * ESTIMATED_PHOTOGRAPHY_COST_USD,
   });
 });
 

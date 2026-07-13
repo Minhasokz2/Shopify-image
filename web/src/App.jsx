@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { NavMenu } from '@shopify/app-bridge-react';
 import { Box, InlineStack, Spinner } from '@shopify/polaris';
+import { useLowCreditNotice } from './hooks/useLowCreditNotice.js';
 
 // Every page below used to be a static import, so visiting the Dashboard downloaded and parsed
 // every other page's code too (Bulk Queue, Video Studio, Persona Builder, the whole Image
@@ -59,6 +60,10 @@ function RouteFallback() {
 }
 
 export default function App() {
+  // Mounted once at the root so a low/out-of-credits toast can reach the merchant regardless of
+  // which page they're on — see the hook's own comment for why this can't just live on Dashboard.
+  useLowCreditNotice();
+
   return (
     <>
       {/* Rendered by the Shopify admin's own chrome, not in-page — see

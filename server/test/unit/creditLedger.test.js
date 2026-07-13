@@ -156,6 +156,44 @@ describe('creditLedger: settleJobSuccess (deduct only on success, server-recompu
     expect(shop.data().creditBalance).toBe(0);
   });
 
+  it('increments lifetime usage stats (totalImagesGenerated, totalCreditsSpent) even for unlimited-plan shops', async () => {
+    await seedShop('shop-stats-unlimited.myshopify.com', { creditBalance: 0, plan: 'unlimited' });
+    await seedTemplate('stats-template', { creditCost: 4 });
+    await seedJob('job-stats-unlimited', { shopDomain: 'shop-stats-unlimited.myshopify.com' });
+
+    await settleJobSuccess({
+      jobId: 'job-stats-unlimited',
+      shopDomain: 'shop-stats-unlimited.myshopify.com',
+      templateId: 'stats-template',
+      variations: [{ url: 'https://x/1.png' }, { url: 'https://x/2.png' }],
+      modelUsed: 'flux-kontext-max',
+    });
+
+    const shop = await firestore.collection('shops').doc('shop-stats-unlimited.myshopify.com').get();
+    expect(shop.data().totalImagesGenerated).toBe(2);
+    expect(shop.data().totalCreditsSpent).toBe(4);
+    expect(shop.data().creditBalance).toBe(0); // unlimited plans still never lose balance
+  });
+
+  it('accumulates lifetime usage stats across multiple successful jobs for a metered shop', async () => {
+    await seedShop('shop-stats-metered.myshopify.com', { creditBalance: 20, totalImagesGenerated: 3, totalCreditsSpent: 6 });
+    await seedTemplate('stats-template-2', { creditCost: 4 });
+    await seedJob('job-stats-metered', { shopDomain: 'shop-stats-metered.myshopify.com' });
+
+    await settleJobSuccess({
+      jobId: 'job-stats-metered',
+      shopDomain: 'shop-stats-metered.myshopify.com',
+      templateId: 'stats-template-2',
+      variations: [{ url: 'https://x/1.png' }],
+      modelUsed: 'flux-kontext-max',
+    });
+
+    const shop = await firestore.collection('shops').doc('shop-stats-metered.myshopify.com').get();
+    expect(shop.data().totalImagesGenerated).toBe(4);
+    expect(shop.data().totalCreditsSpent).toBe(10);
+    expect(shop.data().creditBalance).toBe(16);
+  });
+
   it('is idempotent — settling an already-succeeded job twice never double-charges', async () => {
     await seedShop('shop8.myshopify.com', { creditBalance: 20 });
     await seedTemplate('wood-surface', { creditCost: 4 });

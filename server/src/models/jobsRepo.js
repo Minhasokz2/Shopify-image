@@ -1,7 +1,22 @@
 import { createRepo } from '../lib/createRepo.js';
-import { FieldValue } from '../lib/firestore.js';
+import { firestore, FieldValue } from '../lib/firestore.js';
 
 const repo = createRepo('jobs');
+
+// How long a claimed-but-not-yet-succeeded job is allowed to go without a heartbeat
+// (updateProgressStage below) before another worker is allowed to reclaim it. Exists because
+// this app runs the in-process JobWorker with no distributed lock — a Render rolling deploy can
+// briefly run the old and new instance's worker at once, and both call resumeFromFirestore() on
+// boot. Without a lease, both instances would call the paid generation providers for the same
+// job. 10 minutes comfortably exceeds any single provider call in the pipeline.
+const LEASE_TIMEOUT_MS = 10 * 60 * 1000;
+
+function claimedAtMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  return 0;
+}
 
 export const JOB_STATUS = {
   PENDING: 'pending',
@@ -34,12 +49,33 @@ export const jobsRepo = {
     });
   },
 
-  async markProcessing(jobId) {
-    await repo.update(jobId, { status: JOB_STATUS.PROCESSING });
+  // Atomic — the single source of truth for "which worker actually gets to run this job",
+  // replacing the old unconditional markProcessing(). A pending job is always claimable. A job
+  // already marked processing is only reclaimable once its lease (claimedAt, refreshed by
+  // updateProgressStage's heartbeat below) has gone stale past LEASE_TIMEOUT_MS — i.e. its
+  // original worker is presumed dead, not just slow. Firestore transactions serialize concurrent
+  // callers, so if two workers race to claim the same job, only one observes `claimed: true`.
+  async claimForProcessing(jobId) {
+    const ref = repo.collection().doc(jobId);
+    return firestore.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) return { claimed: false };
+
+      const job = doc.data();
+      if (job.status === JOB_STATUS.SUCCEEDED) return { claimed: false };
+
+      const hasLiveLease = job.status === JOB_STATUS.PROCESSING && Date.now() - claimedAtMillis(job.claimedAt) < LEASE_TIMEOUT_MS;
+      if (hasLiveLease) return { claimed: false };
+
+      tx.update(ref, { status: JOB_STATUS.PROCESSING, claimedAt: FieldValue.serverTimestamp() });
+      return { claimed: true };
+    });
   },
 
+  // Also refreshes the processing lease (see claimForProcessing above) — a genuinely still-running
+  // job keeps reporting stage progress, so its lease never goes stale out from under it.
   async updateProgressStage(jobId, progressStage) {
-    await repo.update(jobId, { progressStage });
+    await repo.update(jobId, { progressStage, claimedAt: FieldValue.serverTimestamp() });
   },
 
   async markSucceeded(jobId, { variations, modelUsed }) {

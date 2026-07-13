@@ -107,9 +107,16 @@ export async function settleJobSuccess({ jobId, shopDomain, templateId, modelId,
       completedAt: FieldValue.serverTimestamp(),
     });
 
-    if (!isUnlimited) {
-      tx.update(shopRef, { creditBalance: FieldValue.increment(-cost) });
-    }
+    // Lifetime stats for the Dashboard's usage/ROI card (see routes/api/credits.js) — informational
+    // only, never read by any balance/billing logic, so they're incremented for unlimited-plan
+    // shops too (their generations are just as real, even though creditBalance never moves).
+    // Combined into the ONE tx.update(shopRef, ...) call below — Firestore transactions don't
+    // merge multiple separate update() calls against the same document reference.
+    tx.update(shopRef, {
+      totalImagesGenerated: FieldValue.increment(variations.length),
+      totalCreditsSpent: FieldValue.increment(cost),
+      ...(isUnlimited ? {} : { creditBalance: FieldValue.increment(-cost) }),
+    });
 
     tx.set(ledgerRef, {
       shopDomain,

@@ -20,10 +20,11 @@ import {
   Thumbnail,
   Tabs,
 } from '@shopify/polaris';
-import { ProductIcon, PersonIcon, CreditCardIcon, ExitIcon, WandIcon, ImagesIcon, ClockIcon } from '@shopify/polaris-icons';
+import { ProductIcon, PersonIcon, CreditCardIcon, ExitIcon, WandIcon, ImagesIcon, ClockIcon, ChartVerticalIcon } from '@shopify/polaris-icons';
 import { apiClient } from '../api/client.js';
 import { CreditBalanceBadge } from '../components/CreditBalanceBadge.jsx';
 import { SectionHeading } from '../components/SectionHeading.jsx';
+import { OnboardingWelcome } from '../components/OnboardingWelcome.jsx';
 import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { useImageOptimizerUsage } from '../hooks/useImageOptimizer.js';
 
@@ -76,6 +77,7 @@ export default function Dashboard() {
   const { data: imageOptimizerUsage } = useImageOptimizerUsage();
   const jobs = data?.jobs ?? [];
   const [signOutError, setSignOutError] = useState(null);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // There's no separate client-side session to tear down — the Shopify embedded iframe stays
   // authenticated via App Bridge regardless. This just clears the shop's Google verification
@@ -94,6 +96,10 @@ export default function Dashboard() {
     imageOptimizerUsage && !imageOptimizerUsage.unlimited && imageOptimizerUsage.dailyLimit > 0
       ? (imageOptimizerUsage.remaining / imageOptimizerUsage.dailyLimit) * 100
       : null;
+
+  // Only for a merchant who has literally never generated anything — once a first job exists this
+  // never shows again, dismissed or not, so there's no server-side flag to manage.
+  const showOnboarding = !isLoading && jobs.length === 0 && !onboardingDismissed;
 
   return (
     <Page
@@ -131,6 +137,32 @@ export default function Dashboard() {
             ) : null}
           </BlockStack>
         </Layout.Section>
+
+        {showOnboarding ? (
+          <Layout.Section>
+            <OnboardingWelcome
+              onGetStarted={() => navigate('/products')}
+              onDismiss={() => setOnboardingDismissed(true)}
+            />
+          </Layout.Section>
+        ) : null}
+
+        {!showOnboarding && creditData?.totalImagesGenerated > 0 ? (
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="300">
+                <SectionHeading icon={ChartVerticalIcon}>Your impact</SectionHeading>
+                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                  <StatBlock value={creditData.totalImagesGenerated} label="AI photos generated" />
+                  <StatBlock
+                    value={`~$${creditData.estimatedSavingsUSD.toLocaleString()}`}
+                    label="Estimated cost saved vs. traditional photography"
+                  />
+                </InlineGrid>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        ) : null}
 
         <Layout.Section>
           <Card>
@@ -240,6 +272,7 @@ export default function Dashboard() {
           </Card>
         </Layout.Section>
 
+        {showOnboarding ? null : (
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
@@ -297,6 +330,7 @@ export default function Dashboard() {
             </BlockStack>
           </Card>
         </Layout.Section>
+        )}
       </Layout>
     </Page>
   );
