@@ -24,6 +24,32 @@ export const CREDIT_PACKS = {
 };
 export const PACK_PLAN_NAMES = Object.keys(CREDIT_PACKS);
 
+// Annual counterpart of each pack — billed once a year (10x the monthly price, "2 months free")
+// instead of every 30 days, so credited as a full year's worth in one lump rather than the
+// monthly amount: reconcileBillingState only re-fires when Shopify's currentPeriodEnd advances,
+// and for an annual subscription that's once a year, not every 30 days. Keyed by the exact
+// BILLING_PLANS/Shopify-subscription name (e.g. "growth_annual"), not the bare pack id.
+const ANNUAL_CREDIT_PACKS = {
+  starter_annual: { credits: CREDIT_PACKS.starter.credits * 12, amountUSD: 90 },
+  growth_annual: { credits: CREDIT_PACKS.growth.credits * 12, amountUSD: 290 },
+  pro_annual: { credits: CREDIT_PACKS.pro.credits * 12, amountUSD: 690 },
+};
+
+// Strips the "_annual" suffix so `shop.plan` always reads as the bare pack id ('starter', not
+// 'starter_annual') regardless of billing interval — every existing plan comparison in the app
+// (assertSufficientCredits' unlimited check, Dashboard/Billing.jsx's `plan === 'starter'`, etc.)
+// keeps working unchanged for annual subscribers.
+function basePackId(subscriptionName) {
+  return subscriptionName.endsWith('_annual') ? subscriptionName.slice(0, -'_annual'.length) : subscriptionName;
+}
+
+// Resolves a Shopify subscription/plan name (which may be an annual variant) to its credit-pack
+// record. Returns null for anything that isn't a recognized credit pack at all (unlimited, the
+// image optimizer add-on) — reconcileBillingState uses that to skip non-pack subscriptions.
+function resolvePackByName(subscriptionName) {
+  return CREDIT_PACKS[subscriptionName] ?? ANNUAL_CREDIT_PACKS[subscriptionName] ?? null;
+}
+
 // The Unlimited subscription tier was retired as a purchasable plan (no more new subscribers),
 // but this name is kept so reconcileBillingState/cancelSubscription still correctly recognize
 // and handle any subscription that was created before the retirement — ripping it out entirely
@@ -47,15 +73,18 @@ const APP_PURCHASE_ONE_TIME_CREATE_MUTATION = `#graphql
   }
 `;
 
-// POST /api/billing/purchase — subscribes the shop to a monthly recurring credit pack, returning
-// a confirmationUrl the merchant is redirected to. Nothing is credited here; that only happens
-// once Shopify confirms the subscription (see reconcileBillingState), and again automatically on
-// every 30-day renewal after that.
-export async function createPackSubscription({ session, packId, returnUrl, isTest = false }) {
+// POST /api/billing/purchase — subscribes the shop to a recurring credit pack (monthly or
+// annual), returning a confirmationUrl the merchant is redirected to. Nothing is credited here;
+// that only happens once Shopify confirms the subscription (see reconcileBillingState), and
+// again automatically on every renewal after that (every 30 days for monthly, once a year for
+// annual). `billingInterval` picks between the two separately-declared BILLING_PLANS entries
+// (see config/shopify.js) — `packId` itself never changes meaning, it's always the bare pack.
+export async function createPackSubscription({ session, packId, billingInterval = 'monthly', returnUrl, isTest = false }) {
   if (!CREDIT_PACKS[packId]) throw new UnknownPackError(packId);
+  const shopifyPlanName = billingInterval === 'annual' ? `${packId}_annual` : packId;
   const { confirmationUrl } = await shopify.api.billing.request({
     session,
-    plan: packId,
+    plan: shopifyPlanName,
     isTest,
     returnUrl,
     returnObject: true,
@@ -175,7 +204,7 @@ export async function reconcileBillingState({ session, isTest = false }) {
   for (const sub of appSubscriptions) {
     if (sub.status !== 'ACTIVE') continue;
 
-    const pack = CREDIT_PACKS[sub.name];
+    const pack = resolvePackByName(sub.name);
     if (!pack) continue;
 
     activePackSubscription = sub;
@@ -184,7 +213,9 @@ export async function reconcileBillingState({ session, isTest = false }) {
     // call, re-run on every reconcile (including the throttled one on every app open), is a no-op
     // until Shopify actually starts a new billing period, at which point addCredits() sees a new
     // key and grants the pack again. No separate "have we billed this period yet" bookkeeping
-    // needed — the ledger's own idempotency does it for free.
+    // needed — the ledger's own idempotency does it for free. For an annual plan this fires once a
+    // year instead of every 30 days, which is why `pack.credits` is a full year's worth for those
+    // (see ANNUAL_CREDIT_PACKS above), not the monthly amount.
     const { alreadyCredited } = await addCredits({
       shopDomain: session.shop,
       creditsAdded: pack.credits,
@@ -198,8 +229,9 @@ export async function reconcileBillingState({ session, isTest = false }) {
 
   if (activePackSubscription) {
     await shopsRepo.updatePackSubscription(session.shop, {
-      plan: activePackSubscription.name,
+      plan: basePackId(activePackSubscription.name),
       subscriptionId: activePackSubscription.id,
+      billingInterval: activePackSubscription.name.endsWith('_annual') ? 'annual' : 'monthly',
     });
   }
 
@@ -219,7 +251,7 @@ export async function reconcileBillingState({ session, isTest = false }) {
 
   return {
     creditedPacks,
-    activePackPlan: activePackSubscription?.name ?? null,
+    activePackPlan: activePackSubscription ? basePackId(activePackSubscription.name) : null,
     unlimited: Boolean(activeSubscription),
     imageOptimizerAddon: Boolean(activeImageOptimizerAddon),
   };

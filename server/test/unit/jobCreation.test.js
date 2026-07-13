@@ -184,7 +184,7 @@ describe('createGenerationJob: custom mode', () => {
       },
     });
 
-    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { templateId: 'studio-white' });
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { templateId: 'studio-white', numImages: 1 });
     expect(claimJobCreation).toHaveBeenCalledWith(
       expect.objectContaining({
         jobData: expect.objectContaining({

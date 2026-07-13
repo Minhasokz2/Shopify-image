@@ -39,19 +39,24 @@ router.get('/credits', async (req, res) => {
   res.json({
     creditBalance: shop?.creditBalance ?? 0,
     plan: shop?.plan ?? 'free',
+    billingInterval: shop?.billingInterval ?? null,
     canCancelPlan: Boolean(shop?.activePackSubscriptionId),
   });
 });
 
-const purchaseSchema = z.object({ packId: z.enum(['starter', 'growth', 'pro']) });
+const purchaseSchema = z.object({
+  packId: z.enum(['starter', 'growth', 'pro']),
+  billingInterval: z.enum(['monthly', 'annual']).default('monthly'),
+});
 
-// POST /api/billing/purchase — subscribes the shop to a monthly recurring credit pack.
+// POST /api/billing/purchase — subscribes the shop to a recurring credit pack (monthly or annual).
 router.post('/billing/purchase', async (req, res) => {
-  const { packId } = purchaseSchema.parse(req.body);
+  const { packId, billingInterval } = purchaseSchema.parse(req.body);
   const returnUrl = `${env.SHOPIFY_APP_URL}/billing/confirm?state=${signState({ shop: req.shopDomain })}`;
   const confirmationUrl = await createPackSubscription({
     session: req.shopSession,
     packId,
+    billingInterval,
     returnUrl,
     isTest: !isProduction,
   });

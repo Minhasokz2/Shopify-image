@@ -136,8 +136,10 @@ export const shopsRepo = {
   // `plan` doubles as both the credits plan (used by assertSufficientCredits' unlimited check and
   // shown on Billing.jsx) and the pack id; `activePackSubscriptionId` is kept so the merchant can
   // cancel from within the app without an extra round trip to Shopify to look the id back up.
-  async updatePackSubscription(shopDomain, { plan, subscriptionId }) {
-    await repo.update(shopDomain, { plan, activePackSubscriptionId: subscriptionId });
+  // `billingInterval` ('monthly'/'annual') is display-only — `plan` is always the bare pack id
+  // regardless of interval, so nothing else that reads `plan` needs to know annual plans exist.
+  async updatePackSubscription(shopDomain, { plan, subscriptionId, billingInterval = 'monthly' }) {
+    await repo.update(shopDomain, { plan, activePackSubscriptionId: subscriptionId, billingInterval });
   },
 
   async clearPackSubscription(shopDomain) {

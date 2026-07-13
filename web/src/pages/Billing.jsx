@@ -5,6 +5,7 @@ import {
   Banner,
   Box,
   Button,
+  ButtonGroup,
   Card,
   InlineStack,
   Layout,
@@ -20,25 +21,32 @@ import { useCreditBalance } from '../hooks/useCreditBalance.js';
 import { SectionHeading } from '../components/SectionHeading.jsx';
 import { apiClient } from '../api/client.js';
 
+// Annual price is 10x monthly (2 months free) for every pack — matches the annual BILLING_PLANS
+// entries in server/src/config/shopify.js exactly. Annual subscribers get a full year of credits
+// (monthlyCredits x 12) granted once at subscribe/renewal, not a monthly drip — see
+// server/src/services/billing.js's ANNUAL_CREDIT_PACKS for why.
 const PACKS = [
   {
     id: 'starter',
     name: 'Starter',
-    priceLabel: '$9',
+    monthlyPrice: 9,
+    annualPrice: 90,
     credits: 50,
     benefits: ['50 fresh credits every month', 'Unused credits roll over — they never expire', 'Cancel anytime'],
   },
   {
     id: 'growth',
     name: 'Growth',
-    priceLabel: '$29',
+    monthlyPrice: 29,
+    annualPrice: 290,
     credits: 200,
     benefits: ['200 fresh credits every month', '~19% cheaper per credit than Starter', 'Unused credits roll over — they never expire', 'Cancel anytime'],
   },
   {
     id: 'pro',
     name: 'Pro',
-    priceLabel: '$69',
+    monthlyPrice: 69,
+    annualPrice: 690,
     credits: 600,
     benefits: ['600 fresh credits every month', 'Our best per-credit rate — cheaper than buying custom credits', 'Unused credits roll over — they never expire', 'Cancel anytime'],
   },
@@ -94,6 +102,7 @@ export default function Billing() {
   const [pendingPackId, setPendingPackId] = useState(null);
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [billingInterval, setBillingInterval] = useState('monthly');
 
   const [customAmount, setCustomAmount] = useState('');
   const { estimate, error: estimateError, loading: estimateLoading } = useCustomCreditEstimate(customAmount);
@@ -103,7 +112,7 @@ export default function Billing() {
     setError(null);
     setPendingPackId(packId);
     try {
-      const data = await apiClient.post('/api/billing/purchase', { packId });
+      const data = await apiClient.post('/api/billing/purchase', { packId, billingInterval });
       redirectToConfirmation(data.confirmationUrl);
     } catch (err) {
       setError(err.message);
@@ -178,33 +187,49 @@ export default function Billing() {
         )}
 
         <Layout.Section>
-          <BlockStack gap="200">
+          <BlockStack gap="300">
             <Text as="p" tone="subdued">
-              Monthly recurring plans — billed every 30 days, cancel anytime. Credits are topped up
-              automatically on each renewal and never expire, so anything you don't use carries into
-              next month.
+              {billingInterval === 'annual'
+                ? 'Annual plans — billed once a year (2 months free vs. paying monthly), cancel anytime. A full year of credits is granted upfront and never expires.'
+                : 'Monthly recurring plans — billed every 30 days, cancel anytime. Credits are topped up automatically on each renewal and never expire, so anything you don\'t use carries into next month.'}
             </Text>
+            <InlineStack align="start">
+              <ButtonGroup variant="segmented">
+                <Button pressed={billingInterval === 'monthly'} onClick={() => setBillingInterval('monthly')}>
+                  Monthly
+                </Button>
+                <Button pressed={billingInterval === 'annual'} onClick={() => setBillingInterval('annual')}>
+                  Annual — save 17%
+                </Button>
+              </ButtonGroup>
+            </InlineStack>
             <InlineStack gap="400" wrap>
               {PACKS.map((pack) => {
                 const isCurrentPlan = credits?.plan === pack.id;
+                const isAnnual = billingInterval === 'annual';
+                const price = isAnnual ? pack.annualPrice : pack.monthlyPrice;
                 const planContent = (
                   <BlockStack gap="200">
                     <InlineStack align="space-between" blockAlign="center">
                       <Text as="h3" variant="headingSm">
                         {pack.name}
                       </Text>
-                      {isCurrentPlan ? <Badge tone="success">Current plan</Badge> : null}
+                      {isCurrentPlan ? (
+                        <Badge tone="success">
+                          {`Current plan${credits?.billingInterval === 'annual' ? ' (annual)' : ''}`}
+                        </Badge>
+                      ) : null}
                     </InlineStack>
                     <InlineStack gap="100" blockAlign="baseline">
                       <Text as="p" variant="heading2xl">
-                        {pack.priceLabel}
+                        {`$${price}`}
                       </Text>
                       <Text as="span" tone="subdued">
-                        /month
+                        {isAnnual ? '/year' : '/month'}
                       </Text>
                     </InlineStack>
                     <Text as="p" tone="subdued">
-                      {pack.credits} credits/month
+                      {isAnnual ? `${pack.credits * 12} credits, granted upfront` : `${pack.credits} credits/month`}
                     </Text>
                     <BlockStack gap="100">
                       {pack.benefits.map((benefit) => (

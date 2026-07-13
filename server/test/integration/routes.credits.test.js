@@ -84,9 +84,25 @@ describe('POST /api/billing/purchase', () => {
 
     expect(calledWith.returnUrl).toMatch(/^https:\/\/[^/]+\/billing\/confirm\?state=/);
     expect(calledWith.returnUrl).not.toContain('/api/billing/confirm');
+    expect(calledWith.plan).toBe('growth'); // defaults to monthly when billingInterval is omitted
 
     const state = new URL(calledWith.returnUrl).searchParams.get('state');
     expect(verifyState(state)).toEqual(expect.objectContaining({ shop: SHOP }));
+  });
+
+  it('requests the annual plan variant when billingInterval: "annual" is sent', async () => {
+    vi.spyOn(shopify.api.billing, 'request').mockResolvedValue({
+      confirmationUrl: 'https://admin.shopify.com/confirm',
+    });
+
+    const app = createApp();
+    const res = await request(app)
+      .post('/api/billing/purchase')
+      .set(await authHeader())
+      .send({ packId: 'growth', billingInterval: 'annual' });
+
+    expect(res.status).toBe(200);
+    expect(shopify.api.billing.request.mock.calls[0][0].plan).toBe('growth_annual');
   });
 });
 

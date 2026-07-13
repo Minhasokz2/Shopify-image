@@ -39,6 +39,24 @@ describe('billing: createPackSubscription', () => {
       expect.objectContaining({ session: SESSION, plan: 'growth', returnUrl: 'https://x/confirm' }),
     );
   });
+
+  it('requests the _annual plan variant when billingInterval is annual', async () => {
+    billingRequest.mockResolvedValue({ confirmationUrl: 'https://admin.shopify.com/confirm' });
+    await createPackSubscription({
+      session: SESSION,
+      packId: 'growth',
+      billingInterval: 'annual',
+      returnUrl: 'https://x/confirm',
+    });
+
+    expect(billingRequest).toHaveBeenCalledWith(expect.objectContaining({ plan: 'growth_annual' }));
+  });
+
+  it('throws UnknownPackError for a packId that does not exist, regardless of billingInterval', async () => {
+    await expect(
+      createPackSubscription({ session: SESSION, packId: 'not-a-real-pack', returnUrl: 'https://x/confirm' }),
+    ).rejects.toThrow('Unknown packId: not-a-real-pack');
+  });
 });
 
 describe('billing: reconcileBillingState — recurring pack subscriptions', () => {
@@ -70,11 +88,43 @@ describe('billing: reconcileBillingState — recurring pack subscriptions', () =
     expect(updatePackSubscription).toHaveBeenCalledWith(SESSION.shop, {
       plan: 'pro',
       subscriptionId: 'gid://shopify/AppSubscription/1',
+      billingInterval: 'monthly',
     });
     expect(result.activePackPlan).toBe('pro');
     expect(result.creditedPacks).toEqual([
       { packId: 'pro', alreadyCredited: false, currentPeriodEnd: '2026-08-01T00:00:00Z' },
     ]);
+  });
+
+  it('credits a FULL YEAR of an annual pack subscription in one lump, and stores the base pack id', async () => {
+    billingCheck.mockResolvedValue({
+      oneTimePurchases: [],
+      appSubscriptions: [
+        {
+          id: 'gid://shopify/AppSubscription/4',
+          name: 'growth_annual',
+          status: 'ACTIVE',
+          currentPeriodEnd: '2027-07-01T00:00:00Z',
+        },
+      ],
+    });
+
+    const result = await reconcileBillingState({ session: SESSION, isTest: true });
+
+    expect(addCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        creditsAdded: CREDIT_PACKS.growth.credits * 12,
+        amountUSD: 290,
+        packId: 'growth_annual',
+        shopifyChargeId: 'gid://shopify/AppSubscription/4:2027-07-01T00:00:00Z',
+      }),
+    );
+    expect(updatePackSubscription).toHaveBeenCalledWith(SESSION.shop, {
+      plan: 'growth', // base id, not "growth_annual" — every other plan comparison stays unchanged
+      subscriptionId: 'gid://shopify/AppSubscription/4',
+      billingInterval: 'annual',
+    });
+    expect(result.activePackPlan).toBe('growth');
   });
 
   it('ignores subscriptions that are not one of the known credit packs (e.g. unlimited/addon)', async () => {

@@ -18,10 +18,22 @@ export const ADMIN_API_VERSION = ApiVersion.April26;
 // for these. The credit grant re-fires every 30 days on renewal (see reconcileBillingState in
 // services/billing.js) rather than just once at signup — merchants get a fresh allotment every
 // month for as long as they stay subscribed, and never have to remember to repurchase.
+//
+// Each pack also has an `_annual` counterpart at 10x the monthly price (2 months free — the
+// standard SaaS annual-discount convention). These have to be separate plan entries rather than
+// one plan with a merchant-chosen interval: shopify.api.billing.request()'s `plan` argument looks
+// up a single pre-declared lineItems/interval combination by name, so "same pack, different
+// interval" means "different plan name" (see billing.js's createPackSubscription, which picks
+// between the two by name). Billed once a year instead of every 30 days — reconcileBillingState
+// grants a full year's credits (12x the monthly amount) in one lump at subscribe/renewal rather
+// than trying to drip-feed monthly credits against a once-a-year billing period.
 export const BILLING_PLANS = {
   starter: { lineItems: [{ amount: 9, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
+  starter_annual: { lineItems: [{ amount: 90, currencyCode: 'USD', interval: BillingInterval.Annually }] },
   growth: { lineItems: [{ amount: 29, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
+  growth_annual: { lineItems: [{ amount: 290, currencyCode: 'USD', interval: BillingInterval.Annually }] },
   pro: { lineItems: [{ amount: 69, currencyCode: 'USD', interval: BillingInterval.Every30Days }] },
+  pro_annual: { lineItems: [{ amount: 690, currencyCode: 'USD', interval: BillingInterval.Annually }] },
   unlimited: {
     lineItems: [{ amount: 29, currencyCode: 'USD', interval: BillingInterval.Every30Days }],
   },
