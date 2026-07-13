@@ -3,10 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const removeBackground = vi.fn(async () => 'https://r2.example.com/clean.png');
 const generateScene = vi.fn(async () => ['https://fal.example.com/1.png']);
 const generateCustomScene = vi.fn(async () => ['https://fal.example.com/custom1.png', 'https://fal.example.com/custom2.png']);
+const generateTextToImage = vi.fn(async () => ['https://fal.example.com/text1.png']);
 const generateUGC = vi.fn(async () => ['https://openai.example.com/1.png']);
 const generateVideoWithFallback = vi.fn(async () => 'https://fal.example.com/video.mp4');
 
-vi.mock('../../src/services/fal.js', () => ({ removeBackground, generateScene, generateCustomScene }));
+const TEXT_TO_IMAGE_TEST_MODEL_IDS = new Set(['ideogram-v4-text']);
+vi.mock('../../src/services/fal.js', () => ({
+  removeBackground,
+  generateScene,
+  generateCustomScene,
+  generateTextToImage,
+  isTextToImageModel: (model) => TEXT_TO_IMAGE_TEST_MODEL_IDS.has(model),
+}));
 vi.mock('../../src/services/openaiImages.js', () => ({ generateUGC }));
 vi.mock('../../src/services/videoGeneration.js', () => ({ generateVideoWithFallback }));
 
@@ -189,5 +197,27 @@ describe('executeCustomGeneration', () => {
     });
 
     expect(stages).toEqual(['removing_background', 'generating']);
+  });
+
+  it('skips background removal entirely for a text-to-image model and calls generateTextToImage instead', async () => {
+    const stages = [];
+    const result = await executeCustomGeneration({
+      model: 'ideogram-v4-text',
+      sourceImageUrls: undefined,
+      customPrompt: 'A minimalist poster with bold typography',
+      numImages: 2,
+      onStage: (stage) => stages.push(stage),
+    });
+
+    expect(removeBackground).not.toHaveBeenCalled();
+    expect(generateCustomScene).not.toHaveBeenCalled();
+    expect(generateTextToImage).toHaveBeenCalledWith({
+      model: 'ideogram-v4-text',
+      prompt: 'A minimalist poster with bold typography',
+      numImages: 2,
+    });
+    expect(stages).toEqual(['generating']);
+    expect(result.cleanImageUrls).toEqual([]);
+    expect(result.variationUrls).toEqual(['https://fal.example.com/text1.png']);
   });
 });

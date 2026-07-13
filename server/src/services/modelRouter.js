@@ -1,4 +1,4 @@
-import { removeBackground, generateScene, generateCustomScene } from './fal.js';
+import { removeBackground, generateScene, generateCustomScene, generateTextToImage, isTextToImageModel } from './fal.js';
 import { generateUGC } from './openaiImages.js';
 import { generateVideoWithFallback } from './videoGeneration.js';
 
@@ -91,8 +91,15 @@ export async function executeGeneration({
 // their own prompt, rather than using a template. No routeModel() call — the merchant's model
 // choice is used as-is, not overridden by the color-critical-category logic that applies to
 // template-driven jobs (they picked this model on purpose). Background removal still runs on
-// every selected source image, same two-step pipeline as the template path.
+// every selected source image, same two-step pipeline as the template path — except for
+// text-to-image models, which have no source image at all and skip straight to generation.
 export async function executeCustomGeneration({ model, sourceImageUrls, customPrompt, numImages, onStage }) {
+  if (isTextToImageModel(model)) {
+    onStage?.('generating');
+    const variationUrls = await generateTextToImage({ model, prompt: customPrompt, numImages });
+    return { model, cleanImageUrls: [], variationUrls };
+  }
+
   onStage?.('removing_background');
   const cleanImageUrls = await Promise.all(sourceImageUrls.map((url) => removeBackground(url)));
   onStage?.('generating');

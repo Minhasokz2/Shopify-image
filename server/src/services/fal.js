@@ -165,7 +165,38 @@ const EXTENDED_ALLOWED_MODELS = {
   },
 };
 
-export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS)];
+// Genuine text-to-image models — verified live via get_model_schema to have NO image_url/
+// image_urls parameter at all (not "optional", literally absent from the schema), unlike every
+// model above, which the same verification pass confirmed all genuinely require an image. These
+// exist for merchants who want to generate a scene/graphic from scratch rather than edit an
+// existing product photo — a fundamentally different job shape (no source image, no background
+// removal step at all — see modelRouter.js's executeCustomGeneration).
+const TEXT_TO_IMAGE_MODELS = {
+  'ideogram-v4-text': { endpoint: 'ideogram/v4' }, // NOT fal-ai/ideogram/v4 — that id has no schema
+  'imagen4-preview': { endpoint: 'fal-ai/imagen4/preview' },
+  'flux-schnell': { endpoint: 'fal-ai/flux/schnell' },
+  'recraft-v3-text': { endpoint: 'fal-ai/recraft/v3/text-to-image' },
+};
+
+export const TEXT_TO_IMAGE_MODEL_IDS = Object.keys(TEXT_TO_IMAGE_MODELS);
+
+export function isTextToImageModel(modelId) {
+  return Object.hasOwn(TEXT_TO_IMAGE_MODELS, modelId);
+}
+
+// Prompt-only generation — no source image, so none of the two-step (remove background, then
+// generate) pipeline the image-editing models go through applies here at all. All 4 registered
+// endpoints return an `images` array and natively support `num_images`, so this needs no
+// per-model branching the way generateCustomScene's image-shape dispatch does.
+export async function generateTextToImage({ model, prompt, numImages = 1 }) {
+  const config = TEXT_TO_IMAGE_MODELS[model];
+  if (!config) throw new Error(`Unknown text-to-image model: ${model}`);
+
+  const result = await fal.subscribe(config.endpoint, { input: { prompt, num_images: numImages } });
+  return result.data.images.map((img) => img.url);
+}
+
+export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_ALLOWED_MODELS), ...TEXT_TO_IMAGE_MODEL_IDS];
 
 // Single source of truth for "how many reference images does this model actually take", derived
 // straight from the tables above rather than duplicated as separate per-model config — the
@@ -174,8 +205,11 @@ export const ALLOWED_MODEL_IDS = [...SCENE_MODEL_IDS, ...Object.keys(EXTENDED_AL
 // single-image models take exactly 1, the image_urls_* shapes take anywhere up to the shared
 // job-creation max of 6 — see generationInputSchema's imageUrls.max(6) in jobCreation.js).
 // `exact` is non-null only when the count can't vary at all (dual_image); everything else has a
-// real min/max range instead.
+// real min/max range instead. Text-to-image models get {0,0,0} — no attach control should even
+// be shown for them, not just an empty-but-allowed range.
 export function getImageCountConstraint(modelId) {
+  if (isTextToImageModel(modelId)) return { min: 0, max: 0, exact: 0 };
+
   const extended = EXTENDED_ALLOWED_MODELS[modelId];
   if (extended) {
     if (extended.inputShape === 'dual_image') return { min: 2, max: 2, exact: 2 };

@@ -27,4 +27,10 @@ export const REAL_COST_PER_IMAGE_USD = {
   'seedvr-upscale': 0.004,
   'fashn-tryon': 0.075,
   'qwen-multi-angle': 0.035,
+  // Text-to-image models (fal.js's TEXT_TO_IMAGE_MODELS) — no source image, verified pricing via
+  // get_pricing, not estimated.
+  'ideogram-v4-text': 0.01,
+  'imagen4-preview': 0.04,
+  'flux-schnell': 0.0024, // $0.003/megapixel at the model's default 1024x768 output
+  'recraft-v3-text': 0.08, // worst-cased at the vector-style rate (2x the $0.04 raster rate)
 };

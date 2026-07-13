@@ -54,9 +54,11 @@ function useAllowedModels() {
 //
 // Model comes first, image attachment second (the reverse of the old step order) precisely so
 // the attach control already knows the current model's image-count limits (verified live against
-// every registered fal.ai endpoint — see fal.js's getImageCountConstraint — every one of them
-// genuinely requires at least one image; there is no model in this catalog that can generate from
-// a prompt with zero images, so the attach step is never skippable, only its exact limit varies).
+// every registered fal.ai endpoint — see fal.js's getImageCountConstraint). Most models genuinely
+// require at least one image; a handful of genuine text-to-image models (ideogram-v4-text,
+// imagen4-preview, flux-schnell, recraft-v3-text) need none at all and hide the attach control
+// entirely rather than showing it as merely optional, since attaching an image to one of these
+// would be silently ignored by the underlying fal.ai endpoint.
 export default function CustomPromptStudio() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -113,6 +115,18 @@ export default function CustomPromptStudio() {
   const remainingSlots = Math.max(0, effectiveMax - totalSelectedImages);
   const tooFewForModel = Boolean(selectedModel) && totalSelectedImages < imageCount.min;
   const tooManyForModel = Boolean(selectedModel) && totalSelectedImages > imageCount.max;
+  const noImageNeeded = Boolean(selectedModel) && imageCount.max === 0;
+
+  // Switching to a text-to-image model makes any already-attached images irrelevant (they'd
+  // never be sent) — clear them rather than leave stale, unused thumbnails on screen.
+  const handleModelChange = (modelId) => {
+    setSelectedModelId(modelId);
+    const nextModel = models.find((m) => m.id === modelId);
+    if (nextModel?.imageCount?.max === 0) {
+      setSelectedImageUrls(new Set());
+      setUploadedImages([]);
+    }
+  };
 
   const toggleImage = (url) => {
     setSelectedImageUrls((prev) => {
@@ -171,7 +185,12 @@ export default function CustomPromptStudio() {
         contentType: 'scene',
         modelId: selectedModelId,
         customPrompt: customPrompt.trim(),
-        imageUrls: [...selectedImageUrls, ...uploadedImages.map((img) => img.url)],
+        // Omitted entirely (not sent as []) for text-to-image models — the server schema treats
+        // imageUrls as optional, but only when the KEY itself is absent; an explicit empty array
+        // still fails its own min(1) check.
+        ...(totalSelectedImages > 0
+          ? { imageUrls: [...selectedImageUrls, ...uploadedImages.map((img) => img.url)] }
+          : {}),
         numImages: Number(numImages),
         idempotencyKey: crypto.randomUUID(),
       }),
@@ -194,7 +213,7 @@ export default function CustomPromptStudio() {
   };
 
   const canGenerate =
-    totalSelectedImages > 0 &&
+    (totalSelectedImages > 0 || noImageNeeded) &&
     customPrompt.trim().length > 0 &&
     Boolean(selectedModelId) &&
     !tooFewForModel &&
@@ -288,7 +307,7 @@ export default function CustomPromptStudio() {
                         })),
                       ]}
                       value={selectedModelId}
-                      onChange={setSelectedModelId}
+                      onChange={handleModelChange}
                     />
                   </Box>
 
@@ -308,10 +327,12 @@ export default function CustomPromptStudio() {
                   ) : null}
 
                   {selectedModel ? (
-                    <Badge tone="info">
-                      {imageCount.exact
-                        ? `Needs exactly ${imageCount.exact} image${imageCount.exact === 1 ? '' : 's'}`
-                        : `Up to ${imageCount.max} images`}
+                    <Badge tone={noImageNeeded ? 'success' : 'info'}>
+                      {noImageNeeded
+                        ? 'No image needed — text only'
+                        : imageCount.exact
+                          ? `Needs exactly ${imageCount.exact} image${imageCount.exact === 1 ? '' : 's'}`
+                          : `Up to ${imageCount.max} images`}
                     </Badge>
                   ) : null}
                   {selectedModel && !canAfford ? (
@@ -328,9 +349,11 @@ export default function CustomPromptStudio() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <SectionHeading icon={EditIcon}>2. Describe the scene and attach images</SectionHeading>
+              <SectionHeading icon={EditIcon}>
+                {noImageNeeded ? '2. Describe the image you want' : '2. Describe the scene and attach images'}
+              </SectionHeading>
 
-              {attachedThumbnails.length > 0 ? (
+              {!noImageNeeded && attachedThumbnails.length > 0 ? (
                 <InlineStack gap="200" wrap>
                   {attachedThumbnails.map((img) => (
                     <Box key={img.url} position="relative">
@@ -350,29 +373,33 @@ export default function CustomPromptStudio() {
 
               <Box borderWidth="025" borderColor="border" borderRadius="300" padding="200" background="bg-surface">
                 <InlineStack gap="200" blockAlign="center" wrap={false}>
-                  <Popover
-                    active={attachMenuOpen}
-                    onClose={() => setAttachMenuOpen(false)}
-                    activator={
-                      <Button
-                        icon={AttachmentIcon}
-                        accessibilityLabel="Attach reference image"
-                        disabled={remainingSlots === 0}
-                        onClick={() => setAttachMenuOpen((open) => !open)}
-                      />
-                    }
-                  >
-                    <ActionList items={attachMenuItems} />
-                  </Popover>
+                  {!noImageNeeded ? (
+                    <>
+                      <Popover
+                        active={attachMenuOpen}
+                        onClose={() => setAttachMenuOpen(false)}
+                        activator={
+                          <Button
+                            icon={AttachmentIcon}
+                            accessibilityLabel="Attach reference image"
+                            disabled={remainingSlots === 0}
+                            onClick={() => setAttachMenuOpen((open) => !open)}
+                          />
+                        }
+                      >
+                        <ActionList items={attachMenuItems} />
+                      </Popover>
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={handleFilesChosen}
-                  />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        style={{ display: 'none' }}
+                        onChange={handleFilesChosen}
+                      />
+                    </>
+                  ) : null}
 
                   <Box width="100%">
                     <TextField
@@ -387,7 +414,7 @@ export default function CustomPromptStudio() {
                 </InlineStack>
               </Box>
 
-              {uploadMutation.isPending ? (
+              {!noImageNeeded && uploadMutation.isPending ? (
                 <InlineStack gap="200" blockAlign="center">
                   <Spinner accessibilityLabel="Uploading" size="small" />
                   <Text as="span" tone="subdued" variant="bodySm">
@@ -396,7 +423,7 @@ export default function CustomPromptStudio() {
                 </InlineStack>
               ) : null}
 
-              {remainingSlots === 0 ? (
+              {!noImageNeeded && remainingSlots === 0 ? (
                 <Text as="p" variant="bodySm" tone="subdued">
                   {selectedModel
                     ? `${selectedModel.label} accepts at most ${imageCount.max} image${imageCount.max === 1 ? '' : 's'} — remove one to add another.`

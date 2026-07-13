@@ -197,4 +197,42 @@ describe('createGenerationJob: custom mode', () => {
       }),
     );
   });
+
+  it('accepts a text-to-image model with no imageUrls at all — no source image, no product', async () => {
+    await createGenerationJob({
+      shopDomain: 'shop.myshopify.com',
+      idempotencyKey: 'key-text-only',
+      input: {
+        contentType: 'scene',
+        modelId: 'ideogram-v4-text',
+        customPrompt: 'A minimalist poster with bold typography',
+      },
+    });
+
+    expect(assertSufficientCredits).toHaveBeenCalledWith('shop.myshopify.com', { modelId: 'ideogram-v4-text', numImages: 1 });
+    expect(claimJobCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobData: expect.objectContaining({
+          modelId: 'ideogram-v4-text',
+          customPrompt: 'A minimalist poster with bold typography',
+          productImageUrls: null,
+          productId: null,
+        }),
+      }),
+    );
+  });
+
+  it('still rejects a non-text-to-image custom model with no imageUrls', async () => {
+    await expect(
+      createGenerationJob({
+        shopDomain: 'shop.myshopify.com',
+        idempotencyKey: 'key-missing-images',
+        input: {
+          contentType: 'scene',
+          modelId: 'flux-kontext-max',
+          customPrompt: 'A prompt with no images attached',
+        },
+      }),
+    ).rejects.toThrow(/imageUrls/);
+  });
 });

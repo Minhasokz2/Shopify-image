@@ -6,6 +6,9 @@ vi.mock('@fal-ai/client', () => ({ fal: { config: vi.fn(), subscribe } }));
 const {
   generateCustomScene,
   generateScene,
+  generateTextToImage,
+  isTextToImageModel,
+  TEXT_TO_IMAGE_MODEL_IDS,
   SCENE_MODEL_IDS,
   ALLOWED_MODEL_IDS,
   TEMPLATE_MODEL_IDS,
@@ -134,8 +137,8 @@ describe('generateScene: request shape per model (template flow)', () => {
 // SCENE_MODEL_IDS/templates, since dual-image roles don't fit the fixed-prompt template flow. See
 // fal.js's EXTENDED_ALLOWED_MODELS doc comment for the full shape rationale.
 describe('generateCustomScene: extended Allowed-Models catalog', () => {
-  it('exposes all 16 allowed models (5 scene + 11 extended)', () => {
-    expect(ALLOWED_MODEL_IDS).toHaveLength(16);
+  it('exposes all 20 allowed models (5 scene + 11 extended + 4 text-to-image)', () => {
+    expect(ALLOWED_MODEL_IDS).toHaveLength(20);
     expect(ALLOWED_MODEL_IDS).toEqual(expect.arrayContaining(SCENE_MODEL_IDS));
   });
 
@@ -336,5 +339,60 @@ describe('getImageCountConstraint', () => {
 
   it('defaults to exactly 1 for an unknown model id, rather than allowing an unbounded upload', () => {
     expect(getImageCountConstraint('not-a-real-model')).toEqual({ min: 1, max: 1, exact: 1 });
+  });
+
+  it('returns {0,0,0} for a text-to-image model — no attach control should be shown at all', () => {
+    for (const modelId of TEXT_TO_IMAGE_MODEL_IDS) {
+      expect(getImageCountConstraint(modelId)).toEqual({ min: 0, max: 0, exact: 0 });
+    }
+  });
+});
+
+describe('generateTextToImage: genuine text-to-image models (no image input at all)', () => {
+  it('exposes exactly the 4 verified text-to-image models', () => {
+    expect(TEXT_TO_IMAGE_MODEL_IDS).toEqual(['ideogram-v4-text', 'imagen4-preview', 'flux-schnell', 'recraft-v3-text']);
+  });
+
+  it('isTextToImageModel is true for each of them and false for an image-editing model', () => {
+    for (const modelId of TEXT_TO_IMAGE_MODEL_IDS) {
+      expect(isTextToImageModel(modelId)).toBe(true);
+    }
+    expect(isTextToImageModel('flux-kontext-max')).toBe(false);
+  });
+
+  it('ideogram-v4-text calls the real "ideogram/v4" endpoint (no fal-ai/ prefix) with only prompt + num_images', async () => {
+    await generateTextToImage({ model: 'ideogram-v4-text', prompt: 'A bold poster', numImages: 2 });
+
+    expect(subscribe).toHaveBeenCalledWith('ideogram/v4', { input: { prompt: 'A bold poster', num_images: 2 } });
+  });
+
+  it('imagen4-preview calls fal-ai/imagen4/preview and returns every url from the images array', async () => {
+    subscribe.mockResolvedValue({ data: { images: [{ url: 'https://fal.example.com/a.png' }, { url: 'https://fal.example.com/b.png' }] } });
+
+    const urls = await generateTextToImage({ model: 'imagen4-preview', prompt: 'A studio product shot', numImages: 2 });
+
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/imagen4/preview', { input: { prompt: 'A studio product shot', num_images: 2 } });
+    expect(urls).toEqual(['https://fal.example.com/a.png', 'https://fal.example.com/b.png']);
+  });
+
+  it('flux-schnell calls fal-ai/flux/schnell', async () => {
+    await generateTextToImage({ model: 'flux-schnell', prompt: 'A quick draft', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/flux/schnell', { input: { prompt: 'A quick draft', num_images: 1 } });
+  });
+
+  it('recraft-v3-text calls fal-ai/recraft/v3/text-to-image', async () => {
+    await generateTextToImage({ model: 'recraft-v3-text', prompt: 'A vector-style logo', numImages: 1 });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/recraft/v3/text-to-image', { input: { prompt: 'A vector-style logo', num_images: 1 } });
+  });
+
+  it('defaults numImages to 1 when omitted', async () => {
+    await generateTextToImage({ model: 'flux-schnell', prompt: 'A quick draft' });
+    expect(subscribe).toHaveBeenCalledWith('fal-ai/flux/schnell', { input: { prompt: 'A quick draft', num_images: 1 } });
+  });
+
+  it('throws for an unknown text-to-image model', async () => {
+    await expect(generateTextToImage({ model: 'not-a-real-model', prompt: 'x' })).rejects.toThrow(
+      'Unknown text-to-image model: not-a-real-model',
+    );
   });
 });

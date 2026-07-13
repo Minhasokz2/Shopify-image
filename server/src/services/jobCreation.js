@@ -5,6 +5,7 @@ import { assertAdultPersona } from './personaGuard.js';
 import { assertSufficientCredits } from './creditLedger.js';
 import { claimJobCreation } from './idempotency.js';
 import { jobWorker } from './jobWorker.js';
+import { isTextToImageModel } from './fal.js';
 
 export const personaSettingsSchema = z.object({
   ageRange: z.string(),
@@ -75,7 +76,10 @@ export const generationInputSchema = z
       if (!body.customPrompt) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['customPrompt'], message: 'customPrompt is required.' });
       }
-      if (!body.imageUrls) {
+      // Text-to-image models (ideogram-v4-text, imagen4-preview, etc.) have no source image at
+      // all — verified live to have no image_url/image_urls param in their real fal.ai schema
+      // (see fal.js's TEXT_TO_IMAGE_MODELS) — so imageUrls is only required for every other model.
+      if (!body.imageUrls && !isTextToImageModel(body.modelId)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['imageUrls'], message: 'imageUrls is required.' });
       }
     } else if (!body.imageUrl) {
@@ -117,7 +121,7 @@ export async function createGenerationJob({ shopDomain, input, idempotencyKey, b
     jobData: {
       productId: body.productId ?? null,
       productImageUrl: isCustom ? null : body.imageUrl,
-      productImageUrls: isCustom ? body.imageUrls : null,
+      productImageUrls: isCustom ? body.imageUrls ?? null : null,
       contentType: body.contentType,
       templateId: isCustom ? null : body.templateId,
       modelId: isCustom ? body.modelId : null,

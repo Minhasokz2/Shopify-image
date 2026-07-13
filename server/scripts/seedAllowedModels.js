@@ -9,8 +9,12 @@
 // Pro pack's bulk rate ($69/600 credits = $0.115/credit, the lowest revenue-per-credit across
 // all packs): see admin/src/components/ModelForm.jsx's margin calculator for the live math.
 //
-// Imagen 4 is deliberately absent — verified to have zero image-input parameters (pure
-// text-to-image), which silently discarded any product photo sent to it. Do not re-add it here.
+// Imagen 4 was originally rejected here for having zero image-input parameters (pure
+// text-to-image), which would silently discard any product photo sent to it — that reasoning
+// still applies to every model above, all of which are image-editing models. It's re-added below
+// as `imagen4-preview`, alongside 3 other genuine text-to-image models (fal.js's
+// TEXT_TO_IMAGE_MODELS) — a deliberately different feature for merchants generating a scene from
+// scratch with no product photo at all, not a repeat of the original mistake.
 import { allowedModelsRepo } from '../src/models/allowedModelsRepo.js';
 
 const SCENE_MODELS = [
@@ -143,6 +147,38 @@ const EXTENDED_MODELS = [
     label: 'Qwen Multi-Angle Shots (fixed default angle)',
     creditCost: 1, // ~$0.035/image (per-megapixel, estimated)
     supportsMultiImage: true,
+  },
+  // Text-to-image models (fal.js's TEXT_TO_IMAGE_MODELS) — no image input at all, verified live
+  // to have zero image_url/image_urls param. supportsMultiImage is meaningless for these (no
+  // image slot to combine multiple references into) and left false; the custom-prompt UI hides
+  // its image-attach control for them entirely based on getImageCountConstraint, not this flag.
+  {
+    id: 'ideogram-v4-text',
+    falModel: 'ideogram-v4-text',
+    label: 'Ideogram V4 (text-to-image, budget)',
+    creditCost: 1, // real cost $0.01/image; margin at 1cr: 91-94%
+    supportsMultiImage: false,
+  },
+  {
+    id: 'imagen4-preview',
+    falModel: 'imagen4-preview',
+    label: 'Google Imagen 4 (preview)',
+    creditCost: 1, // real cost $0.04/image; margin at 1cr: 65-78%
+    supportsMultiImage: false,
+  },
+  {
+    id: 'flux-schnell',
+    falModel: 'flux-schnell',
+    label: 'FLUX.1 [schnell] (fastest/cheapest)',
+    creditCost: 1, // ~$0.0024/image (per-megapixel at default 1024x768); margin at 1cr: 98%+
+    supportsMultiImage: false,
+  },
+  {
+    id: 'recraft-v3-text',
+    falModel: 'recraft-v3-text',
+    label: 'Recraft V3 (design/vector styles)',
+    creditCost: 2, // real cost $0.04-0.08/image (2x for vector styles, worst-cased); margin at 2cr: 65-78%
+    supportsMultiImage: false,
   },
 ].map((m) => ({ active: true, ...m, category: 'scene' }));
 

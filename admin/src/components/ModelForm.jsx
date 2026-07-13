@@ -30,6 +30,16 @@ const FAL_MODEL_OPTIONS = [
   { value: 'seedvr-upscale', label: 'SeedVR2 Upscale (budget) — single image, no prompt used' },
   { value: 'fashn-tryon', label: 'FASHN Virtual Try-On — requires EXACTLY 2 images (person, then garment); driven by its own Virtual Try-On page, not the custom-prompt studio' },
   { value: 'qwen-multi-angle', label: 'Qwen Multi-Angle Shots — fixed default camera angle (no angle control yet)' },
+  // Text-to-image models — the exact opposite of every model above: NO image input at all
+  // (verified live via get_model_schema to have zero image_url/image_urls param), for merchants
+  // who want to generate a scene/graphic from scratch rather than edit a product photo. This is
+  // a genuinely different feature from the image-editing catalog above, not a mistake — the
+  // custom-prompt UI hides its image-attach control entirely for these (see fal.js's
+  // getImageCountConstraint returning {0,0,0}).
+  { value: 'ideogram-v4-text', label: 'Ideogram V4 (text-to-image, budget) — strong typography/poster rendering, no image needed' },
+  { value: 'imagen4-preview', label: 'Google Imagen 4 (preview) — high-quality photorealistic, no image needed' },
+  { value: 'flux-schnell', label: 'FLUX.1 [schnell] (fastest/cheapest) — quick drafts, no image needed' },
+  { value: 'recraft-v3-text', label: 'Recraft V3 (design/vector styles) — brand colors + style presets, no image needed' },
 ];
 
 // Only models that genuinely combine more than one merchant-selected image into one generation.
@@ -70,11 +80,15 @@ const REAL_COST_PER_IMAGE_USD = {
   'seedvr-upscale': 0.004,
   'fashn-tryon': 0.075,
   'qwen-multi-angle': 0.035,
+  'ideogram-v4-text': 0.01,
+  'imagen4-preview': 0.04,
+  'flux-schnell': 0.0024,
+  'recraft-v3-text': 0.08, // worst-cased at the vector-style rate (2x the $0.04 raster rate)
 };
 
 // True for costs converted from a per-megapixel/per-compute-second unit rather than fal's own
 // stated per-image/per-generation price — shown as "~" in the margin calculator.
-const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle']);
+const APPROXIMATE_COST_MODELS = new Set(['birefnet', 'rembg', 'topaz-upscale', 'seedvr-upscale', 'qwen-multi-angle', 'flux-schnell']);
 
 // Real input schema for each FAL endpoint, verified live via mcp__fal-ai__get_model_schema —
 // not guessed. Purely informational (the pipeline always sends fixed defaults: prompt, the
@@ -199,6 +213,26 @@ const MODEL_PARAMETERS = {
     endpoint: 'fal-ai/qwen-image-edit-2511-multiple-angles',
     imageInput: 'image_urls (array, always). Camera angle stays at this model\'s defaults (front view, eye-level, medium shot) — there\'s no angle-slider UI yet.',
     params: ['horizontal_angle / vertical_angle / zoom (all fixed at defaults — not exposed in the merchant UI yet)'],
+  },
+  'ideogram-v4-text': {
+    endpoint: 'ideogram/v4',
+    imageInput: 'NONE — pure text-to-image. Not fal-ai/ideogram/v4 (invalid, empty schema); the real endpoint has no fal-ai/ prefix.',
+    params: ['image_size: preset enum, e.g. square_hd | portrait_16_9 | landscape_16_9 (default square_hd)', 'rendering_speed: TURBO | BALANCED | QUALITY', 'expansion_model (prompt-expansion tier)'],
+  },
+  'imagen4-preview': {
+    endpoint: 'fal-ai/imagen4/preview',
+    imageInput: 'NONE — pure text-to-image.',
+    params: ['resolution: 1K | 2K (default 1K)', 'aspect_ratio: 1:1 | 16:9 | 9:16 | 4:3 | 3:4 (default 1:1)', 'safety_tolerance (optional)'],
+  },
+  'flux-schnell': {
+    endpoint: 'fal-ai/flux/schnell',
+    imageInput: 'NONE — pure text-to-image. Fastest/cheapest tier (4 inference steps by default).',
+    params: ['image_size: preset enum (default landscape_4_3, 1024x768)', 'num_inference_steps (default 4)', 'acceleration / guidance_scale (optional)'],
+  },
+  'recraft-v3-text': {
+    endpoint: 'fal-ai/recraft/v3/text-to-image',
+    imageInput: 'NONE — pure text-to-image. Vector/illustration styles cost 2x the raster rate (worst-cased into this model\'s credit price).',
+    params: ['style: realistic_image | digital_illustration/* | vector_illustration/* (huge enum, incl. line_art/infographical/cutout)', 'colors (array — brand-color hints)', 'image_size: preset enum (default square_hd)'],
   },
 };
 
